@@ -1,8 +1,6 @@
 #initialize_data.py
 import torch
 
-from scipy.stats.qmc import LatinHypercube
-
 class InitializeData:
 
     """
@@ -15,7 +13,6 @@ class InitializeData:
     - hard_core_radius (float): Radius of the hard core interaction
 
     """
-
 
     def __init__(self, N, dim, device=None, dtype=torch.float32, hard_core_radius=0.0):
         self.N = N
@@ -106,10 +103,7 @@ class InitializeData:
         Returns:
             torch.BoolTensor: Mask of valid configurations
         """
-        if self.a == 0.0 or self.N <= 1:
-            return torch.ones(candidates.shape[0], device=candidates.device, dtype=torch.bool)
-
-        r_ij_abs, _ = self.distance_and_distance_vec(candidates)  # (B, N, N), (B, N, N, dim)
+        r_ij_abs, r_ij = self.distance_and_distance_vec(candidates)  # (B, N, N), (B, N, N, dim)
 
         iu = torch.triu_indices(self.N, self.N, offset=1, device=candidates.device)
         rij = r_ij_abs[:, iu[0], iu[1]]  # (B, num_pairs)

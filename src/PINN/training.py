@@ -31,40 +31,30 @@ class Training(LossFunctions):
         
         # Initialize adaptive weights for each loss component
         self.weights = {}
-        for i in range(len(S_max_list)):
-            self.weights[f"bc_left_{i}"] = torch.tensor(1.0, device=self.device)
-            self.weights[f"bc_right_{i}"] = torch.tensor(1.0, device=self.device)
-        self.weights["tc"] = torch.tensor(1.0, device=self.device)
         self.weights["pde"] = torch.tensor(1.0, device=self.device)
         
 
     
-    def training_step_BS(self, lbc, rbc, tc, pde, optimizer, key_lbc, key_rbc):
+    def training_step_BS(self, pde, optimizer):
         """
         Performs a single training step: computes all loss components, adapts weights,
         backpropagates the weighted loss, and updates model parameters.
 
         Parameters:
-            - lbc                      (Tensor): Left boundary condition data (d, N, d+1).
-            - rbc                      (Tensor): Right boundary condition data (d, N, d+1).
-            - tc                       (Tensor): Terminal condition data (N, d+1).
-            - pde                      (Tensor): PDE interior sampling points (N, d+1).
+
+            - pde                      (Tensor): PDE points (N, d).
             - optimizer (torch.optim.Optimizer): Optimizer for updating model parameters.
-            - key_lbc                     (int): Index of asset dimension for left boundary loss.
-            - key_rbc                     (int): Index of asset dimension for right boundary loss.
-        
+
         Returns:
             - (tuple): Tuple containing:
                 - total_loss    (Tensor): Total weighted loss.
                 - pde_loss      (Tensor): PDE residual loss.
 
         """
+
         # Compute each component of the loss
-
         pde_loss = self.PDE_loss(pde)
-            
-
-        raw_losses =pde_loss
+        raw_losses = pde_loss
 
         # Adaptive weighting based on the total gradient (GradNorm)
         epsilon, alpha = 1e-8, 0.9
