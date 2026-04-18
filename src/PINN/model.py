@@ -68,6 +68,5 @@ class Model(nn.Module):
         # Pass input through the network
         return self.model(x)
 
-model = Model(num_inputs=2, hidden_layers=[20,20,20,20], activation_function=nn.Tanh())
-
-print(model(torch.tensor([[3.0, 3.0],[2.0, 2.0]])))
+#model = Model(num_inputs=2, hidden_layers=[20,20,20,20], activation_function=nn.Tanh())
+#print(model(torch.tensor([[3.0, 3.0],[2.0, 2.0]])))
