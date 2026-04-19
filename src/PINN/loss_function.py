@@ -21,19 +21,13 @@ class LossFunctions(nn.Module):
 
         self.model  = SE_model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.dim      = SE_model.dim
-        self.N        = SE_model.N
-        self.alpha    = SE_model.alpha
-        self.beta     = SE_model.beta
-        self.omega_ho = SE_model.omega_ho
-        self.omega_z  = SE_model.omega_z
-
-        beta_val = float(self.beta) # Convert to float if it's a tensor
+   
+        beta_val = float(self.model.beta) # Convert to float if it's a tensor
         # Calculate initial energy based on dim, N and beta_val
         if beta_val == 1.0:
-            E_init = self.N*self.dim/2
+            E_init = self.model.N * self.model.dim / 2
         else:
-            E_init = self.N*(1+ np.sqrt(beta_val)/2) 
+            E_init = self.model.N * (1 + np.sqrt(beta_val) / 2) 
 
         self.energy = nn.Parameter(torch.tensor(E_init, device=self.device))
         self.mse    = nn.MSELoss()
@@ -70,8 +64,9 @@ class LossFunctions(nn.Module):
             - lap_u: (B, 1)
         """
 
+        # function requires input of shape (N, dim) and returns scalar output(for hess, lap_u)
         def u_single(x):
-            return self.model(x.unsqueeze(0))[0, 0]
+            return self.model(x.unsqueeze(0))[0, 0] #returns scalar
 
         grad_u_fn = grad(u_single)
         hess_u_fn = jacrev(grad_u_fn)
@@ -81,7 +76,7 @@ class LossFunctions(nn.Module):
 
         B = positions.shape[0]
 
-        hess_flat = hess_u.reshape(B, self.N * self.dim, self.N * self.dim)
+        hess_flat = hess_u.reshape(B, self.model.N * self.model.dim, self.model.N * self.model.dim)
         lap_u = hess_flat.diagonal(dim1=1, dim2=2).sum(dim=1, keepdim=True)
 
         u = self.model(positions)
@@ -95,15 +90,15 @@ class LossFunctions(nn.Module):
         """
         
 
-        if self.dim <= 2 or float(self.beta) == 1.0:
-            V = 0.5 * self.omega_ho**2 * torch.sum(positions**2, dim=(1, 2))  #dim=(1, 2) sums over N and dim
+        if self.model.dim <= 2 or float(self.model.beta) == 1.0:
+            V = 0.5 * self.model.omega_ho**2 * torch.sum(positions**2, dim=(1, 2))  #dim=(1, 2) sums over N and dim
         else:
             xy_sq = torch.sum(positions[:, :, :-1]**2, dim=(1, 2))
             z_sq  = torch.sum(positions[:, :, -1]**2, dim=1)
 
             V = 0.5 * (
-                self.omega_ho**2 * xy_sq +
-                self.omega_z**2 * z_sq
+                self.model.omega_ho**2 * xy_sq +
+                self.model.omega_z**2 * z_sq
             )
 
         return V.unsqueeze(1)
