@@ -109,6 +109,8 @@ class SE_Model(nn.Module):
         self.N = N
         self.alpha = alpha
         self.beta = beta
+        self.omega_ho = 1.0
+        self.omega_z = 1.0
 
         if trainable_parameters:
             self.alpha = nn.Parameter(torch.tensor(alpha))
