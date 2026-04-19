@@ -23,23 +23,17 @@ def compute_rel_and_abs_error(C_numerical, C_model, epsilon=1e-4):
 
 
 
-def plot_rel_error_scatter(S_total, t, rel_error_flat, title):
-    """
-    Creates a scatter plot of the relative error over total asset price and time.
+def plot_rel_error_scatter(VMC, PINN, title):
+    rel_error, _ = compute_rel_and_abs_error(VMC, PINN)
+    rel_error_flat = rel_error.flatten()
 
-    Parameters:
-        - S_total        (np.ndarray): Total asset prices (S1 + S2), flattened array.
-        - t              (np.ndarray): Time values corresponding to each S_total value.
-        - rel_error_flat (np.ndarray): Flattened array of relative error values.
-        - title                 (str): Plot title.
-    """
     # Determine color scale limits from the error values
     vmin, vmax = np.min(rel_error_flat), np.max(rel_error_flat)
 
     # Create scatter plot
     plt.figure(figsize=(8, 5))
     scatter = plt.scatter(
-        S_total, t, c=rel_error_flat, cmap="viridis",
+        , , c=rel_error_flat, cmap="viridis",
         s=50, edgecolor="k", vmin=vmin, vmax=vmax
     )
     plt.colorbar(scatter, label="Relative Error")

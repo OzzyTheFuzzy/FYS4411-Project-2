@@ -25,7 +25,6 @@ def train_and_evaluate():
     #  Training parameters
     epochs      = 1000
     num_batches = 10
-    
     N_inputs    = int(N * dim)  # Number of input features (e.g., spatial coordinates)
     val_points  = 10000
     val_width   = 1.0 
@@ -38,20 +37,21 @@ def train_and_evaluate():
 
     # create data for training
     positions = data_initializer.initialize_pde(training_points, width, seed=17)
-
+    model_config = {
+        "dim": dim,
+        "N": N,
+        "rho_hidden": [32, 32, 32],
+        "phi_hidden": [32, 32],
+        "eta_hidden": [32, 32],
+        "phi_output": 10,
+        "eta_output": 10,
+        "activation_function": nn.Tanh(),
+        "alpha": 0.5,
+        "beta": 1.0,
+        "trainable_alpha": False
+    }
     # Model initialization, with optimizer and scheduler
-    model = SE_Model(
-        dim=dim,
-        N=N,
-        rho_hidden=[32, 32],
-        phi_hidden=[32, 32],
-        eta_hidden=[32, 32],
-        phi_output=10,
-        eta_output=10,
-        activation_function=nn.Tanh(),
-        alpha=0.5,
-        beta=1.0,
-        trainable_alpha=False)
+    model = SE_Model(**model_config)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
@@ -69,23 +69,32 @@ def train_and_evaluate():
             num_batches=num_batches,
             use_scheduler=True
         )
+    
+    # Save model weights
+    checkpoint = {"model_state_dict": best_model_state}
+    torch.save(checkpoint, f"models/{model_name}.pth")
 
-    # Save model
-    torch.save(best_model_state, f"models/{model_name}.pth")
+    # Save training results + metadata to JSON
+    json_config = model_config.copy()
+    json_config["activation_function"] = "Tanh" #json cannot serialize the activation function, so we save its name instead
 
-    # Save training results to JSON
     results = {
+        "model_name": model_name,
+        "energy": trainer.energy.detach().cpu().item(),
+        "model_config": json_config,
         "epochs": epochs,
-        "train_loss": loss,      
-        "val_loss": val_loss,  
+        "train_loss": loss,
+        "val_loss": val_loss,
         "epochs_val": epochs_val,
-        "min_val_loss": float(min(val_loss)),
-        "min_val_epoch": int(epochs_val[val_loss.index(min(val_loss))])   }
+        "min_val_loss": float(min(val_loss)) if val_loss else None,
+        "min_val_epoch": int(epochs_val[val_loss.index(min(val_loss))]) if val_loss else None
+    }
 
-    with open(f"logs/{model_name}" + ".json", "w") as f:
+    with open(f"logs/{model_name}.json", "w") as f:
         json.dump(results, f, indent=2)
 
-    print(f"Saved all results to logs/{model_name}.json")
+    print(f"Saved model to models/{model_name}.pth")
+    print(f"Saved logs to logs/{model_name}.json")
 
 
 def load_results(model_name):
