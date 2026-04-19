@@ -1,4 +1,5 @@
 #model.py
+from matplotlib.pylab import beta
 from numpy import shape
 import torch
 import torch.nn as nn
@@ -101,29 +102,22 @@ class SE_Model(nn.Module):
         activation_function=nn.Tanh(),
         alpha=0.5,
         beta=1.0,
-        trainable_parameters=False
+        trainable_alpha=False
     ):
         super().__init__()
 
         self.dim = dim
         self.N = N
-        self.alpha = alpha
-        self.beta = beta
         self.omega_ho = 1.0
         self.omega_z = 1.0
 
-        if trainable_parameters:
-            self.alpha = nn.Parameter(torch.tensor(alpha))
-            self.beta = nn.Parameter(torch.tensor(beta))
-
-        # returns vector
         self.phi = Model(
             num_inputs=dim,
             num_outputs=phi_output,
             hidden_layers=phi_hidden,
             activation_function=activation_function
         )
-        # returns vector
+
         self.eta = Model(
             num_inputs=1,
             num_outputs=eta_output,
@@ -131,13 +125,19 @@ class SE_Model(nn.Module):
             activation_function=activation_function
         )
 
-        # the actual network which we train. Returns scalar
         self.rho = Model(
             num_inputs=phi_output + eta_output,
             num_outputs=1,
             hidden_layers=rho_hidden,
             activation_function=activation_function
         )
+
+        if trainable_alpha:
+            self.alpha = nn.Parameter(torch.tensor(alpha, dtype=torch.float32))
+        else:
+            self.register_buffer("alpha", torch.tensor(alpha, dtype=torch.float32))
+
+        self.register_buffer("beta", torch.tensor(beta, dtype=torch.float32))
 
     def forward(self, positions):
 
@@ -151,7 +151,7 @@ class SE_Model(nn.Module):
         x = positions  # shape (B, N, dim)
 
         # Gaussian envelope term
-        if self.beta == 1.0:
+        if self.dim <= 2 or float(self.beta) == 1.0:
             gauss = -(self.alpha * (x**2).sum(dim=2)).sum(dim=1, keepdim=True)  # shape (B, 1)
         
         else:
