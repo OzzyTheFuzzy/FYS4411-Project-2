@@ -1,0 +1,2 @@
+# N D mode stepParam omega alpha eval replicas energy_mean gradient_mean acceptance_mean energy_std energy_stderr wall_seconds mean_replica_cpu_seconds
+10 3 bf 0.5 1 0.48 an 4 24.4140823839 -1.87434439125 0.681753635406 0.00580546858361 0.00290273429181 5.069671677 4.8329568715
