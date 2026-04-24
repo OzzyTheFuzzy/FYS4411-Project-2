@@ -110,3 +110,4 @@ std::pair<double,double> runAlphaScan(
     double hardCoreA = 0.0
 );
 
+std::vector<std::vector<double>> matr_mult(std::vector<std::vector<double>>& a, std::vector<std::vector<double>>& b);

@@ -331,3 +331,15 @@ std::pair<double,double> runAlphaScan(
     outScan.close();
     return {bestAlpha, bestEnergy};
 }
+
+std::vector<std::vector<double>> matr_mult(std::vector<std::vector<double>>& a, std::vector<std::vector<double>>& b) {
+    std::vector<std::vector<double>> res;
+    for (int i = 0; i < a.size(); i++) {
+        for (int j = 0; j < b.size(); j++) {
+            for (int k = 0; k < a[0].size(); k++)
+                res[i][j] += a[i][k] * b[k][j];
+        }
+    }
+
+    return res;
+}
