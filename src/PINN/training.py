@@ -11,7 +11,7 @@ class Training(LossFunctions):
     """
     Training class for the PINN that will solve SE
     """
-    def __init__(self, SE_model, val_points, val_width=1.0, val_seed=17):
+    def __init__(self, SE_model, val_points=100, val_width=1.0, val_seed=17):
         super().__init__(SE_model)
         self.model  = SE_model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
