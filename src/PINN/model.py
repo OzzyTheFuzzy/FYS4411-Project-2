@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 
+
 class Model(nn.Module):
     """
     Class for making generic NN models
@@ -164,7 +165,7 @@ class SE_Model(nn.Module):
         phi_out = phi_out.view(B, self.N, -1)         # shape (B, N, phi_output)
         phi_sum = phi_out.sum(dim=1)                  # shape (B, phi_output)
 
-        # Pairwise branch: sum_{i<j} eta(r_ij)
+        # Pairwise branch if N > 1: sum_{i<j} eta(r_ij)
         if self.N < 2:
             eta_sum = torch.zeros(
                 B,
@@ -217,3 +218,63 @@ model=SE_Model(
     trainable_parameters=False)
 """
 
+
+
+def reconstruct_SE_model(path):
+    checkpoint = torch.load(path, map_location="cpu")
+
+    if "model_state_dict" in checkpoint:
+        sd = checkpoint["model_state_dict"]
+    else:
+        sd = checkpoint
+
+    print("\n🔍 Inspecting model...\n")
+
+    # --- Helper to extract layers ---
+    def extract_layers(prefix):
+        layers = []
+        i = 0
+        while True:
+            key = f"{prefix}.model.{i}.weight"
+            if key not in sd:
+                break
+            w = sd[key]
+            layers.append(w.shape)
+            i += 2  # skip activation
+        return layers
+
+    # --- PHI ---
+    phi_layers = extract_layers("phi")
+    dim = phi_layers[0][1]
+    phi_hidden = [l[0] for l in phi_layers[:-1]]
+    phi_output = phi_layers[-1][0]
+
+    # --- ETA ---
+    eta_layers = extract_layers("eta")
+    eta_hidden = [l[0] for l in eta_layers[:-1]]
+    eta_output = eta_layers[-1][0]
+
+    # --- RHO ---
+    rho_layers = extract_layers("rho")
+    rho_hidden = [l[0] for l in rho_layers[:-1]]
+
+    # --- Infer N ---
+    # Trick: look at rho input size = phi_output + eta_output
+    rho_input = rho_layers[0][1]
+
+    print("🔹 Inferred architecture:\n")
+    print(f"dim = {dim}")
+    print(f"phi_hidden = {phi_hidden}")
+    print(f"phi_output = {phi_output}")
+    print(f"eta_hidden = {eta_hidden}")
+    print(f"eta_output = {eta_output}")
+    print(f"rho_hidden = {rho_hidden}")
+
+    return {
+        "dim": dim,
+        "phi_hidden": phi_hidden,
+        "phi_output": phi_output,
+        "eta_hidden": eta_hidden,
+        "eta_output": eta_output,
+        "rho_hidden": rho_hidden
+    }

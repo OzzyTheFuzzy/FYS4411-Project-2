@@ -1,4 +1,3 @@
-import os
 import json
 import torch 
 import torch.nn as nn
@@ -6,7 +5,7 @@ import matplotlib.pyplot as plt
 
 from training import Training
 from initialize_data import InitializeData
-from model import Model, SE_Model
+from model import SE_Model, reconstruct_SE_model
 
 model_name  = "model_test"
 
@@ -15,8 +14,8 @@ def train_and_evaluate():
 
     # Configuration
     width = 1.0      # Width of the Gaussian distribution for sampling collocation points
-    a = 0.0          # Hard-core radius (set to 0 for no interactions)
-    N = 1          # Number of particles (dimensions)
+    a =  0.0  #0.0043          # Hard-core radius (set to 0 for no interactions)
+    N = 1         # Number of particles (dimensions)
     dim = 1         # Dimensionality of the particles
 
     # Number of training points 
@@ -25,7 +24,6 @@ def train_and_evaluate():
     #  Training parameters
     epochs      = 1000
     num_batches = 10
-    N_inputs    = int(N * dim)  # Number of input features (e.g., spatial coordinates)
     val_points  = 10000
     val_width   = 1.0 
     val_seed    = 42
@@ -40,12 +38,12 @@ def train_and_evaluate():
     model_config = {
         "dim": dim,
         "N": N,
-        "rho_hidden": [32, 32, 32],
-        "phi_hidden": [32, 32],
+        "rho_hidden": [32, 32, 32], 
+        "phi_hidden": [32, 32], #
         "eta_hidden": [32, 32],
         "phi_output": 10,
         "eta_output": 10,
-        "activation_function": nn.Tanh(),
+        "activation_function": nn.GELU(),
         "alpha": 0.5,
         "beta": 1.0,
         "trainable_alpha": False

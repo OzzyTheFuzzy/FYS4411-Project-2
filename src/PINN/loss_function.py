@@ -102,3 +102,11 @@ class LossFunctions(nn.Module):
             )
 
         return V.unsqueeze(1)
+    
+    def energy_model(self, positions):
+
+        u, lap_u = self.grad_and_laplacian(positions)
+        V = self.potential(positions)
+
+
+        return -0.5 * lap_u + V * u
