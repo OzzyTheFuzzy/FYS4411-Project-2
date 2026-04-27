@@ -4,6 +4,7 @@
 
 #include "system.h"
 #include "sampler.h"
+#include "RBMsampler.h"
 #include "particle.h"
 #include "WaveFunctions/wavefunction.h"
 #include "Hamiltonians/hamiltonian.h"
@@ -74,6 +75,30 @@ std::unique_ptr<class Sampler> System::runMetropolisSteps(
     return sampler;
 }
 
+std::unique_ptr<class RBMSampler> System::runRBMMetropolisSteps(
+    double stepLength,
+    unsigned int numberOfMetropolisSteps,
+    unsigned int numberOfHidden,
+    bool storeEnergyHistory
+)
+{
+    auto sampler = std::make_unique<RBMSampler>(
+        m_numberOfParticles,
+        m_numberOfDimensions,
+        numberOfHidden,
+        stepLength,
+        numberOfMetropolisSteps,
+        storeEnergyHistory
+    );
+
+    for (unsigned int i = 0; i < numberOfMetropolisSteps; i++) {
+        bool acceptedStep = m_solver->step(stepLength, *m_waveFunction, m_particles);
+        sampler->sample(acceptedStep, this);
+    }
+
+    sampler->computeAverages();
+    return sampler;
+}
 double System::computeLocalEnergy()
 {
     // Helper function

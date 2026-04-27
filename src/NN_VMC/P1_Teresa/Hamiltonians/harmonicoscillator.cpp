@@ -97,11 +97,6 @@ double HarmonicOscillator::computeLocalEnergy(
             std::vector<std::unique_ptr<class Particle>>& particles
         )
 {
-    /* Here, you need to compute the kinetic and potential energies.
-     * Access to the wave function methods can be done using the dot notation
-     * for references, e.g., wavefunction.computeDoubleDerivative(particles),
-     * to get the Laplacian of the wave function.
-     * */
 
     // Natural units: hbar = m = 1
     // Local energy: E_L = -1/2 * (∇^2Ψ / Ψ) + 1/2 * ω^2 * Σ_i r_i^2

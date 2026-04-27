@@ -41,6 +41,7 @@
 
 #include "system.h"
 #include "WaveFunctions/simplegaussian.h"
+#include "WaveFunctions/boltzmannmachine.h"
 #include "Hamiltonians/harmonicoscillator.h"
 #include "InitialStates/initialstate.h"
 #include "Solvers/metropolis.h"
@@ -48,17 +49,61 @@
 #include "Math/random.h"
 #include "particle.h"
 #include "sampler.h"
+#include "RBMsampler.h"
 #include "Solvers/montecarlo.h"
 #include "optimizer.h"
 #include "utilities.h"
 
 #include <torch/torch.h>
 
-int main(int argc, char** argv) {
-    torch::Tensor tensor = torch::eye(3);
-    std::cout << tensor << std::endl;
+static void testRBMMilestone1()
+{
+    const unsigned int N = 2;
+    const unsigned int D = 2;
+    const unsigned int Nh = 2;
 
+    // Small RBM parameters
+    std::vector<std::vector<double>> a(N, std::vector<double>(D, 0.0));
+    std::vector<double> b(Nh, 0.0);
+    std::vector<std::vector<std::vector<double>>> W(
+        N,
+        std::vector<std::vector<double>>(D, std::vector<double>(Nh, 0.01))
+    );
+
+    // Two particles in 2D
+    std::vector<std::unique_ptr<Particle>> particles;
+    particles.push_back(std::make_unique<Particle>(std::vector<double>{0.2, -0.1}));
+    particles.push_back(std::make_unique<Particle>(std::vector<double>{-0.3, 0.4}));
+
+    BoltzmannMachine rbm(a, b, W);
+    HarmonicOscillator ho(1.0, false, 1e-3);
+
+    const double psi = rbm.evaluate(particles);
+    const double lapPsi = rbm.computeDoubleDerivative(particles);
+    const double EL = ho.computeLocalEnergy(rbm, particles);
+
+    std::cout << "\n--- RBM Milestone 1 test ---\n";
+    std::cout << "Psi                = " << psi << "\n";
+    std::cout << "Laplacian Psi      = " << lapPsi << "\n";
+    std::cout << "Local energy       = " << EL << "\n";
+
+    if (!std::isfinite(psi) || !std::isfinite(lapPsi) || !std::isfinite(EL)) {
+        std::cerr << "RBM Milestone 1 FAILED: non-finite value detected.\n";
+    } else {
+        std::cout << "RBM Milestone 1 PASSED: all values are finite.\n";
+    }
+}
+
+int main(int argc, char** argv) {
+
+    // Testing some things with new RBM
+    testRBMMilestone1();
     return 0;
+
+    // Testing the "torch" library
+    //torch::Tensor tensor = torch::eye(3);
+    //std::cout << tensor << std::endl;
+    //return 0;
 
     // ---------------- Defaults ----------------
     const int baseSeed = 2023;

@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <vector>
+#include <stdexcept>
 
 
 class WaveFunction {
@@ -20,7 +21,9 @@ public:
     // Logarithmic derivative with respect to alpha:
     // O_alpha(R) = d/dalpha ln Psi_alpha(R)
     // Needed for the VMC energy gradient estimator
-    virtual double computeLogDerivativeAlpha(std::vector<std::unique_ptr<class Particle>>& particles) = 0;
+    virtual double computeLogDerivativeAlpha(std::vector<std::unique_ptr<class Particle>>& particles) {
+        throw std::logic_error("Single-parameter logarithmic derivative not implemented.");
+    }
 
 protected:
     int m_numberOfParameters = 0;

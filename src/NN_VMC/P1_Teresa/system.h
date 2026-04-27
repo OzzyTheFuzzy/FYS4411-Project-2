@@ -27,6 +27,13 @@ public:
             double densityRhoMax = 4.0
         );
 
+    std::unique_ptr<class RBMSampler> runRBMMetropolisSteps(
+            double stepLength,
+            unsigned int numberOfMetropolisSteps,
+            unsigned int numberOfHidden,
+            bool storeEnergyHistory = false
+        );
+
     // Helper used by Sampler
     double computeLocalEnergy();
 
