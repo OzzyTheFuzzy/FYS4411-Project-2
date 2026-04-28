@@ -10,6 +10,7 @@ project_root = Path(__file__).resolve().parent
 
 data_dir = project_root / "positions_energy_data"
 model_dir = project_root / "models"
+filename= 'r_all_E_N1_d1' #without .npz
 
 def evaluate_energy(model_name, positions):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -46,19 +47,16 @@ def evaluate_energy(model_name, positions):
     return energy
 
 
-def load_positions_and_energy(filename, N, dim, device="cpu", index=None):
-    data = np.loadtxt(filename, comments="#")
-    data = np.atleast_2d(data)
+def load_positions_and_energy(filename, device="cpu", index=None):
+    data = np.load(data_dir / f"{filename}.npz")
+    
+    r_all = data["r_all"]
+    n_samples, N, dim = r_all.shape 
 
-    n_pos_cols = N * dim
+    E_ana = data["E"]
 
-    positions_flat = data[:, :n_pos_cols]
-    energies = data[:, n_pos_cols]
-
-    positions = positions_flat.reshape(-1, N, dim)
-
-    positions = torch.tensor(positions, dtype=torch.float32, device=device)
-    energies = torch.tensor(energies, dtype=torch.float32, device=device).reshape(-1, 1)
+    positions = torch.tensor(r_all, dtype=torch.float32, device=device)
+    energies = torch.tensor(E_ana, dtype=torch.float32, device=device).reshape(-1, 1)
 
     if index is not None:
         positions = positions[index:index+1]
@@ -66,7 +64,7 @@ def load_positions_and_energy(filename, N, dim, device="cpu", index=None):
 
     return positions, energies
 
-positions, energies = load_positions_and_energy("positions_energy_data/N1_d1_a0.0_pos_E.txt", N=1, dim=1)
+positions, energies = load_positions_and_energy(filename)
 
 PINN_energies = evaluate_energy("1N_1D_GELU_323232_output_.pth", positions)
 print(PINN_energies)
@@ -77,4 +75,4 @@ plt.plot(energies.detach().cpu().numpy(), label="Analytical")
 plt.xlabel("Sample")
 plt.ylabel("Energy")
 plt.legend()
-#plt.show()
+plt.show()
