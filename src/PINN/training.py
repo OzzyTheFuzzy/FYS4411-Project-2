@@ -103,7 +103,7 @@ class Training(LossFunctions):
 
         for epoch in range(N_epochs):
             if epoch % 10 == 0:
-                print(f'Epoch {epoch}/{N_epochs} ')
+                print(f'Epoch {epoch}/{N_epochs}  Training Loss {loss[-1]:.6f}:  Validation Loss {val_loss[-1]:.6f}' if val_loss else f'Epoch {epoch}/{N_epochs}  training Loss {loss[-1]:.6f}')
             self.model.train()
 
             pde_sum = 0.0

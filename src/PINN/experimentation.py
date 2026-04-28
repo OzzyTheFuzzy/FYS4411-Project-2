@@ -7,19 +7,19 @@ from training import Training
 from initialize_data import InitializeData
 from model import SE_Model, reconstruct_SE_model
 
-model_name  = "model_test"
+model_name  = "1N_1D_GELU_323232_output_" # name for saving model and logs
 
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Configuration
     width = 1.0      # Width of the Gaussian distribution for sampling collocation points
-    a =  0.0  #0.0043          # Hard-core radius (set to 0 for no interactions)
+    a =  0.0  #0.0043  for interactions   Hard-core radius (set to 0 for no interactions)
     N = 1         # Number of particles (dimensions)
     dim = 1         # Dimensionality of the particles
 
     # Number of training points 
-    training_points = 10000
+    training_points = 50000
 
     #  Training parameters
     epochs      = 1000
