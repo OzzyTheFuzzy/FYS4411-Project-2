@@ -102,8 +102,7 @@ class Training(LossFunctions):
         batch_array = DataLoader(TensorDataset(positions), batch_size, shuffle=True, drop_last=True) #creates batches for training
 
         for epoch in range(N_epochs):
-            if epoch % 10 == 0:
-                print(f'Epoch {epoch}/{N_epochs} ')
+
             self.model.train()
 
             pde_sum = 0.0
@@ -115,9 +114,11 @@ class Training(LossFunctions):
                 pde_sum += pde_loss
                 batches += 1
 
+
             avg_pde = pde_sum / batches # Average PDE loss for the epoch
 
             loss.append(avg_pde)
+
             epochs.append(epoch)
 
             # check the validation loss and save the best model state
@@ -131,6 +132,12 @@ class Training(LossFunctions):
                 if pde_val_loss.item() < best_val_loss:
                     best_val_loss = pde_val_loss.item()
                     best_model_state = copy.deepcopy(self.model.state_dict())
+
+            if epoch % 10 == 0:
+                
+                energy = self.energy_model(val_positions)
+                mean_energy = energy.mean().item()
+                print(f"Epoch {epoch}: Mean Energy = {mean_energy:.6f}")
 
             if use_scheduler:
                 scheduler.step()
