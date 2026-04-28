@@ -10,8 +10,8 @@ project_root = Path(__file__).resolve().parent
 
 data_dir = project_root / "positions_energy_data"
 model_dir = project_root / "models"
-filename= 'r_all_E_N1_d1' #without .npz
-
+filename= 'r_all_E_N1_d1_betaNone_a0.0' #without .npz
+model_name = "1N_1D_GELU_323232_test_.pth" # name of model with .pth
 def evaluate_energy(model_name, positions):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -66,7 +66,7 @@ def load_positions_and_energy(filename, device="cpu", index=None):
 
 positions, energies = load_positions_and_energy(filename)
 
-PINN_energies = evaluate_energy("1N_1D_GELU_323232_output_.pth", positions)
+PINN_energies = evaluate_energy(model_name, positions)
 print(PINN_energies)
 
 

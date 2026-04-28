@@ -108,5 +108,5 @@ class LossFunctions(nn.Module):
         u, lap_u = self.grad_and_laplacian(positions)
         V = self.potential(positions)
 
-
-        return -0.5 * lap_u + V * u
+        eps = 1e-8
+        return (-0.5 * lap_u + V * u) / (u + eps)

@@ -7,28 +7,28 @@ from training import Training
 from initialize_data import InitializeData
 from model import SE_Model, reconstruct_SE_model
 
-model_name  = "1N_1D_GELU_323232_output_" # name for saving model and logs
+model_name  = "1N_1D_GELU_323232_test_" # name for saving model and logs
 
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Configuration
     width = 1.0      # Width of the Gaussian distribution for sampling collocation points
-    a =  0.0  #0.0043  for interactions   Hard-core radius (set to 0 for no interactions)
-    N = 1         # Number of particles (dimensions)
-    dim = 1         # Dimensionality of the particles
+    a     =  0.0  #0.0043  for interactions   Hard-core radius (set to 0 for no interactions)
+    N     = 1         # Number of particles (dimensions)
+    dim   = 1         # Dimensionality of the particles
 
     # Number of training points 
-    training_points = 50000
+    training_points = 100000
 
     #  Training parameters
     epochs      = 1000
-    num_batches = 10
+    num_batches = 50
     val_points  = 10000
     val_width   = 1.0 
     val_seed    = 42
-    lr          = 1e-3
-  
+    lr          = 2.0e-3
+    
 
     # Create instance of data initialization 
     data_initializer = InitializeData(N, dim, device=device, dtype=torch.float32, hard_core_radius=a)
@@ -74,7 +74,7 @@ def train_and_evaluate():
 
     # Save training results + metadata to JSON
     json_config = model_config.copy()
-    json_config["activation_function"] = "Tanh" #json cannot serialize the activation function, so we save its name instead
+    json_config["activation_function"] = "GELU" #json cannot serialize the activation function, so we save its name instead
 
     results = {
         "model_name": model_name,
