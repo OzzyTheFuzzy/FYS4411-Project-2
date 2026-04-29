@@ -18,7 +18,10 @@ class Training(LossFunctions):
         self.val_points = val_points
         self.val_width  = val_width
         self.val_seed   = val_seed
-
+        self.energy_val_var = [] # to store the variance of the energy on the validation set during training
+        self.energy_val_mean = [] # to store the mean of the energy on the validation set during training
+        self.energy_model_array = [] # to store the value of the energy parameter during training
+        self.alpha_array = [] # to store the value of alpha during training
         """
         # Initialize adaptive weights for each loss component
         self.weights = {}
@@ -92,7 +95,7 @@ class Training(LossFunctions):
         loss, epochs = [], []
         val_loss, epochs_val = [], []
 
-        best_val_loss = float("inf")
+        best_E_L_var = float('inf')
         best_model_state = copy.deepcopy(self.model.state_dict())
 
         # Trim PDE dataset to fit exact batch division.
@@ -118,26 +121,43 @@ class Training(LossFunctions):
             avg_pde = pde_sum / batches # Average PDE loss for the epoch
 
             loss.append(avg_pde)
-
             epochs.append(epoch)
 
-            # check the validation loss and save the best model state
-            if epoch % 50 == 0:
-                self.model.eval() # Set model to evaluation mode for validation
+            # check the variance of the energy save the best model state
+            if epoch % 10 == 0:
+                self.model.eval()
+
                 pde_val_loss = self.PDE_loss(val_positions)
+                E_L = self.energy_model(val_positions)
+
+                E_L_var = E_L.var().item()
 
                 val_loss.append(pde_val_loss.item())
                 epochs_val.append(epoch)
 
-                if pde_val_loss.item() < best_val_loss:
-                    best_val_loss = pde_val_loss.item()
+                if E_L_var < best_E_L_var:
+                    best_E_L_var = E_L_var
                     best_model_state = copy.deepcopy(self.model.state_dict())
-
+                    
             if epoch % 10 == 0:
+                # for monitoring training progress, 
+                # we compute the energy on the validation set and store its mean and variance
+                # and the parameters alpha and E_model for the current epoch
+                val_energy = self.energy_model(val_positions)
+                mean_energy = val_energy.mean().item()
+                self.energy_val_mean.append(mean_energy)
+
+                E_L_var = val_energy.var().item()
+                self.energy_val_var.append(E_L_var)
+               
+                energy_model_value = self.energy.item()
+                self.energy_model_array.append(energy_model_value)
                 
-                energy = self.energy_model(val_positions)
-                mean_energy = energy.mean().item()
-                print(f"Epoch {epoch}: Mean Energy = {mean_energy:.6f}")
+                self.alpha_array.append(self.model.alpha.item())
+
+                print(f"Epoch {epoch}: <E>_val={mean_energy:.8f}: Var(<E>_val)={E_L_var:.8f}, alpha = {self.model.alpha.item():.4f}")
+                print(f"Epoch {epoch}: Loss = {avg_pde:.8f}, Validation Loss = {pde_val_loss.item():.8f}")
+                print(f'Energy model {self.energy.item():.8f}')
 
             if use_scheduler:
                 scheduler.step()

@@ -35,6 +35,7 @@ class LossFunctions(nn.Module):
 
     def PDE_loss(self, positions):
         """
+        # Change the energy!
         Computes the mean squared residual of the PDE.
 
         Parameters:
@@ -45,43 +46,41 @@ class LossFunctions(nn.Module):
         """
 
         input_tensor = positions.clone().requires_grad_(True)
-        
-        u, lap_u = self.grad_and_laplacian(input_tensor)
-        V = self.potential(input_tensor)
 
-        residual = -0.5 * lap_u + V * u - self.energy * u
-
+        E_loc = self.energy_model(input_tensor) # E_L(R) =  -1/2 [∇² logpsi(R) + |∇ logpsi(R)|²] + V(R)
+        residual = E_loc - self.energy
+       
         return torch.mean(residual**2)
         
        
     
-    def grad_and_laplacian(self, positions):
+    def logpsi_grad_laplacian(self, positions):
         """
         positions: (B, N, dim)
         returns:
-            - u: (B, 1)
-            - grad_u: (B, N, dim)
-            - lap_u: (B, 1)
+            logpsi: (B, 1)
+            grad_logpsi: (B, N, dim)
+            lap_logpsi: (B, 1)
         """
 
-        # function requires input of shape (N, dim) and returns scalar output(for hess, lap_u)
-        def u_single(x):
-            return self.model(x.unsqueeze(0))[0, 0] #returns scalar
+        def logpsi_single(x):
+            return self.model(x.unsqueeze(0))[0, 0]
 
-        grad_u_fn = grad(u_single)
-        hess_u_fn = jacrev(grad_u_fn)
+        grad_fn = grad(logpsi_single)
+        hess_fn = jacrev(grad_fn)
 
-        #grad_u = vmap(grad_u_fn)(positions)         # (B, N, dim)
-        hess_u = vmap(hess_u_fn)(positions)         # (B, N, dim, N, dim)
+        grad_logpsi = vmap(grad_fn)(positions)      # (B, N, dim)
+        hess_logpsi = vmap(hess_fn)(positions)      # (B, N, dim, N, dim)
 
         B = positions.shape[0]
+        D = self.model.N * self.model.dim
 
-        hess_flat = hess_u.reshape(B, self.model.N * self.model.dim, self.model.N * self.model.dim)
-        lap_u = hess_flat.diagonal(dim1=1, dim2=2).sum(dim=1, keepdim=True)
+        hess_flat = hess_logpsi.reshape(B, D, D)
+        lap_logpsi = hess_flat.diagonal(dim1=1, dim2=2).sum(dim=1, keepdim=True)
 
-        u = self.model(positions)
+        logpsi = self.model(positions)
 
-        return u, lap_u
+        return logpsi, grad_logpsi, lap_logpsi
     
     def potential(self, positions):
         """
@@ -104,9 +103,20 @@ class LossFunctions(nn.Module):
         return V.unsqueeze(1)
     
     def energy_model(self, positions):
-
-        u, lap_u = self.grad_and_laplacian(positions)
+        """
+        positions: (B, N, dim)
+        returns E_L: (B, 1)
+       
+        Calculates: E_L(R) =  -1/2 [∇² logpsi(R) + |∇ logpsi(R)|²] + V(R)
+       
+        """
+        logpsi, grad_logpsi, lap_logpsi = self.logpsi_grad_laplacian(positions)
         V = self.potential(positions)
 
-        eps = 1e-8
-        return (-0.5 * lap_u + V * u) / (u + eps)
+        grad_sq = torch.sum(grad_logpsi**2, dim=(1, 2)).unsqueeze(1)
+
+        #calculate the local energy E_L for each position in the batch 
+        E_L = -0.5 * (lap_logpsi + grad_sq) + V 
+
+        return E_L
+    
