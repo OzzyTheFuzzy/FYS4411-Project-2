@@ -142,5 +142,5 @@ def plot_loss_curves():
     plt.legend()
     plt.show()
 
-train_and_evaluate()
+#train_and_evaluate()
 plot_loss_curves()
