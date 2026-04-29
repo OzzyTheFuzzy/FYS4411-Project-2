@@ -11,7 +11,8 @@ project_root = Path(__file__).resolve().parent
 data_dir = project_root / "positions_energy_data"
 model_dir = project_root / "models"
 filename= 'r_all_E_N1_d1_betaNone_a0.0' #without .npz
-model_name = "1N_1D_GELU_323232_test3.pth" # name of model with .pth
+
+model_name = "1N_1D_GELU_323232_test2_log.pth" # name of model with .pth
 
 def evaluate_energy(model_name, positions):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -46,14 +47,8 @@ def evaluate_energy(model_name, positions):
     energy = trainer.energy_model(positions) #retrieve energy for the given positions
 
     with torch.no_grad():
-        u = model(positions)
+        u = model(positions) #calculate the log(pos) for the wavefunction for the given positions
 
-    print("u min:", u.min().item())
-    print("u max:", u.max().item())
-    print("u mean:", u.mean().item())
-    print("u std:", u.std().item())
-    print("small |u| count:", (u.abs() < 1e-5).sum().item())
-    
     return energy.detach().cpu().numpy()
 
 

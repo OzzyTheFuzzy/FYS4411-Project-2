@@ -7,27 +7,27 @@ from training import Training
 from initialize_data import InitializeData
 from model import SE_Model, reconstruct_SE_model
 
-model_name  = "1N_1D_GELU_323232_test3" # name for saving model and logs
+model_name  = "1N_1D_GELU_323232_test2_log" # name for saving model and logs
 
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Configuration
     width = 1.0      # Width of the Gaussian distribution for sampling collocation points
-    a     =  0.0  #0.0043  for interactions   Hard-core radius (set to 0 for no interactions)
+    a     = 0.0  #0.0043  for interactions   Hard-core radius (set to 0 for no interactions)
     N     = 1         # Number of particles (dimensions)
     dim   = 1         # Dimensionality of the particles
 
     # Number of training points 
-    training_points = 100000
+    training_points = 75000
 
     #  Training parameters
-    epochs      = 1200
+    epochs      = 600
     num_batches = 50
     val_points  = 10000
     val_width   = 1.0 
     val_seed    = 42
-    lr          = 5e-4
+    lr          = 1e-4
     
 
     # Create instance of data initialization 
@@ -46,18 +46,17 @@ def train_and_evaluate():
         "activation_function": nn.GELU(),
         "alpha": 0.5,
         "beta": 1.0,
-        "trainable_alpha": True
-        ,
+        "trainable_alpha": True,
     }
     # Model initialization, with optimizer and scheduler
     model = SE_Model(**model_config)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
 
     # Create an instance of the training class
     trainer = Training(model, val_points, val_width, val_seed)
-
+        
+    optimizer = torch.optim.Adam(trainer.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
     # train the model and get training results
     loss, epochs, val_loss, epochs_val, best_model_state = trainer.training_cycle_SE(
             
@@ -79,19 +78,37 @@ def train_and_evaluate():
     
     results = {
         "model_name": model_name,
-        "energy": trainer.energy.detach().cpu().item(),
         "model_config": json_config,
+
+        "energy_parameter_final": trainer.energy.detach().cpu().item(),
+        "energy_parameter_history": trainer.energy_model_array,
+
+        "alpha_initial": model_config["alpha"],
+        "alpha_final": model.alpha.detach().cpu().item(),
+        "alpha_history": trainer.alpha_array,
+
+        "beta": model.beta.detach().cpu().item(),
+
+        "energy_mean_val_final": trainer.energy_val_mean[-1],
+        "energy_mean_val_history": trainer.energy_val_mean,
+
+        "energy_var_val_final": trainer.energy_val_var[-1],
+        "energy_var_val_history": trainer.energy_val_var,
+
+        "energy_std_val_final": trainer.energy_val_var[-1]**0.5,
+
+        "learning_rate": lr,
+        "final_learning_rate": optimizer.param_groups[0]["lr"],
+
+        "a": a,
+        "training_points": training_points,
+
         "epochs": epochs,
         "train_loss": loss,
         "val_loss": val_loss,
         "epochs_val": epochs_val,
-        "min_val_loss": float(min(val_loss)) if val_loss else None,
-        "min_val_epoch": int(epochs_val[val_loss.index(min(val_loss))]) if val_loss else None,
-        "learning_rate": lr,
-        "a": a,
-        "training_points": training_points,
-        "epochs": epochs,
     }
+    
     results["final_learning_rate"] = optimizer.param_groups[0]["lr"]
 
     with open(f"logs/{model_name}.json", "w") as f:
@@ -125,5 +142,5 @@ def plot_loss_curves():
     plt.legend()
     plt.show()
 
-#train_and_evaluate()
+train_and_evaluate()
 plot_loss_curves()
