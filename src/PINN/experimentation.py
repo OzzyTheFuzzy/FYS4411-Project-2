@@ -7,7 +7,7 @@ from training import Training
 from initialize_data import InitializeData
 from model import SE_Model, reconstruct_SE_model
 
-model_name  = "1N_1D_GELU_323232_test_" # name for saving model and logs
+model_name  = "1N_1D_GELU_323232_test3" # name for saving model and logs
 
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -22,12 +22,12 @@ def train_and_evaluate():
     training_points = 100000
 
     #  Training parameters
-    epochs      = 1000
+    epochs      = 1200
     num_batches = 50
     val_points  = 10000
     val_width   = 1.0 
     val_seed    = 42
-    lr          = 2.0e-3
+    lr          = 5e-4
     
 
     # Create instance of data initialization 
@@ -46,7 +46,8 @@ def train_and_evaluate():
         "activation_function": nn.GELU(),
         "alpha": 0.5,
         "beta": 1.0,
-        "trainable_alpha": False
+        "trainable_alpha": True
+        ,
     }
     # Model initialization, with optimizer and scheduler
     model = SE_Model(**model_config)
@@ -75,7 +76,7 @@ def train_and_evaluate():
     # Save training results + metadata to JSON
     json_config = model_config.copy()
     json_config["activation_function"] = "GELU" #json cannot serialize the activation function, so we save its name instead
-
+    
     results = {
         "model_name": model_name,
         "energy": trainer.energy.detach().cpu().item(),
@@ -85,8 +86,13 @@ def train_and_evaluate():
         "val_loss": val_loss,
         "epochs_val": epochs_val,
         "min_val_loss": float(min(val_loss)) if val_loss else None,
-        "min_val_epoch": int(epochs_val[val_loss.index(min(val_loss))]) if val_loss else None
+        "min_val_epoch": int(epochs_val[val_loss.index(min(val_loss))]) if val_loss else None,
+        "learning_rate": lr,
+        "a": a,
+        "training_points": training_points,
+        "epochs": epochs,
     }
+    results["final_learning_rate"] = optimizer.param_groups[0]["lr"]
 
     with open(f"logs/{model_name}.json", "w") as f:
         json.dump(results, f, indent=2)
@@ -119,5 +125,5 @@ def plot_loss_curves():
     plt.legend()
     plt.show()
 
-train_and_evaluate()
+#train_and_evaluate()
 plot_loss_curves()

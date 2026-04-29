@@ -35,6 +35,7 @@ class LossFunctions(nn.Module):
 
     def PDE_loss(self, positions):
         """
+        # Change the energy!
         Computes the mean squared residual of the PDE.
 
         Parameters:

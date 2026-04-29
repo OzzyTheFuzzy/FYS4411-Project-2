@@ -11,7 +11,8 @@ project_root = Path(__file__).resolve().parent
 data_dir = project_root / "positions_energy_data"
 model_dir = project_root / "models"
 filename= 'r_all_E_N1_d1_betaNone_a0.0' #without .npz
-model_name = "1N_1D_GELU_323232_test_.pth" # name of model with .pth
+model_name = "1N_1D_GELU_323232_test3.pth" # name of model with .pth
+
 def evaluate_energy(model_name, positions):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -37,14 +38,23 @@ def evaluate_energy(model_name, positions):
         beta=1.0
     ).to(device)
 
-    model.load_state_dict(state_dict)
+    model.load_state_dict(state_dict) #apply trained weights to model
     model.eval()
 
-    trainer = Training(model)
+    trainer = Training(model) #initialize trainer to access energy_model method
 
-    energy = trainer.energy_model(positions)
+    energy = trainer.energy_model(positions) #retrieve energy for the given positions
 
-    return energy
+    with torch.no_grad():
+        u = model(positions)
+
+    print("u min:", u.min().item())
+    print("u max:", u.max().item())
+    print("u mean:", u.mean().item())
+    print("u std:", u.std().item())
+    print("small |u| count:", (u.abs() < 1e-5).sum().item())
+    
+    return energy.detach().cpu().numpy()
 
 
 def load_positions_and_energy(filename, device="cpu", index=None):
@@ -62,16 +72,14 @@ def load_positions_and_energy(filename, device="cpu", index=None):
         positions = positions[index:index+1]
         energies = energies[index:index+1]
 
-    return positions, energies
+    return positions, energies.detach().cpu().numpy() # retrieve positions with torch and and return energies as numpy for plotting
 
 positions, energies = load_positions_and_energy(filename)
 
 PINN_energies = evaluate_energy(model_name, positions)
-print(PINN_energies)
 
-
-plt.plot(PINN_energies.detach().cpu().numpy(), label="PINN")
-plt.plot(energies.detach().cpu().numpy(), label="Analytical")
+plt.plot(PINN_energies, label="PINN")
+plt.plot(energies, label="Analytical")
 plt.xlabel("Sample")
 plt.ylabel("Energy")
 plt.legend()
