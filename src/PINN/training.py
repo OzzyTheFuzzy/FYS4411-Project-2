@@ -22,6 +22,8 @@ class Training(LossFunctions):
         self.energy_val_mean = [] # to store the mean of the energy on the validation set during training
         self.energy_model_array = [] # to store the value of the energy parameter during training
         self.alpha_array = [] # to store the value of alpha during training
+        self.E_K_array = []
+        self.V_array = []
         """
         # Initialize adaptive weights for each loss component
         self.weights = {}
@@ -94,16 +96,16 @@ class Training(LossFunctions):
         # Lists to store training and validation results
         loss, epochs = [], []
         val_loss, epochs_val = [], []
-
-        best_E_L_var = float('inf')
+        
+        best_E_L_var = 100000
         best_model_state = copy.deepcopy(self.model.state_dict())
 
         # Trim PDE dataset to fit exact batch division.
         positions = self.trim_dataset(positions, num_batches)
-
+        
         batch_size = max(1, len(positions) // num_batches) # Batch size for PDE training
         batch_array = DataLoader(TensorDataset(positions), batch_size, shuffle=True, drop_last=True) #creates batches for training
-
+            
         for epoch in range(N_epochs):
 
             self.model.train()
@@ -128,7 +130,7 @@ class Training(LossFunctions):
                 self.model.eval()
 
                 pde_val_loss = self.PDE_loss(val_positions)
-                E_L = self.energy_model(val_positions)
+                E_L, E_K, V = self.energy_model(val_positions)
 
                 E_L_var = E_L.var().item()
 
@@ -138,12 +140,20 @@ class Training(LossFunctions):
                 if E_L_var < best_E_L_var:
                     best_E_L_var = E_L_var
                     best_model_state = copy.deepcopy(self.model.state_dict())
-                    
+            
+            # Monitor training and save important training data
             if epoch % 10 == 0:
                 # for monitoring training progress, 
                 # we compute the energy on the validation set and store its mean and variance
                 # and the parameters alpha and E_model for the current epoch
-                val_energy = self.energy_model(val_positions)
+                val_energy, E_K, V = self.energy_model(val_positions)
+
+                E_K_mean= E_K.mean().item()
+                self.E_K_array.append(E_K_mean)
+
+                V_mean = V.mean().item()
+                self.V_array.append(V_mean)
+
                 mean_energy = val_energy.mean().item()
                 self.energy_val_mean.append(mean_energy)
 
@@ -155,8 +165,8 @@ class Training(LossFunctions):
                 
                 self.alpha_array.append(self.model.alpha.item())
 
-                print(f"Epoch {epoch}: <E>_val={mean_energy:.8f}: Var(<E>_val)={E_L_var:.8f}, alpha = {self.model.alpha.item():.4f}")
-                print(f"Epoch {epoch}: Loss = {avg_pde:.8f}, Validation Loss = {pde_val_loss.item():.8f}")
+                print(f"Epoch {epoch}: <E>_val={mean_energy:.8f}: E_K={E_K_mean:.8f}, V={V_mean:.8f}: Var(<E>_val)={E_L_var:.8f}, alpha = {self.model.alpha.item():.4f}")
+                print(f"Loss = {avg_pde:.8f}, Validation Loss = {pde_val_loss.item():.8f}")
                 print(f'Energy model {self.energy.item():.8f}')
 
             if use_scheduler:

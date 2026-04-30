@@ -7,7 +7,7 @@ from training import Training
 from initialize_data import InitializeData
 from model import SE_Model, reconstruct_SE_model
 
-model_name  = "1N_1D_GELU_323232_test2_log" # name for saving model and logs
+model_name  = "2N_1D_GELU_323232_long" # name for saving model and logs
 
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -15,19 +15,19 @@ def train_and_evaluate():
     # Configuration
     width = 1.0      # Width of the Gaussian distribution for sampling collocation points
     a     = 0.0  #0.0043  for interactions   Hard-core radius (set to 0 for no interactions)
-    N     = 1         # Number of particles (dimensions)
+    N     = 2         # Number of particles (dimensions)
     dim   = 1         # Dimensionality of the particles
 
     # Number of training points 
-    training_points = 75000
+    training_points = 50000
 
     #  Training parameters
-    epochs      = 600
+    epochs      = 1000
     num_batches = 50
     val_points  = 10000
     val_width   = 1.0 
     val_seed    = 42
-    lr          = 1e-4
+    lr          = 1e-5
     
 
     # Create instance of data initialization 
@@ -35,6 +35,7 @@ def train_and_evaluate():
 
     # create data for training
     positions = data_initializer.initialize_pde(training_points, width, seed=17)
+    
     model_config = {
         "dim": dim,
         "N": N,
@@ -142,5 +143,5 @@ def plot_loss_curves():
     plt.legend()
     plt.show()
 
-#train_and_evaluate()
-plot_loss_curves()
+#train_and_evaluate() # uncomment for training 
+plot_loss_curves() # for plotting the loss during training

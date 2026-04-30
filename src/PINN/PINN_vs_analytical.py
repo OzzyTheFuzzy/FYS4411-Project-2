@@ -12,9 +12,9 @@ project_root = Path(__file__).resolve().parent
 
 data_dir = project_root / "positions_energy_data"
 model_dir = project_root / "models"
-filename= 'r_all_E_N1_d1_betaNone_a0.0' #without .npz
+filename= 'r_all_E_N2_d1_betaNone_a0.0' #without .npz
 
-model_name = "1N_1D_GELU_323232_test2_log.pth" # name of model with .pth
+model_name = "2N_1D_GELU_323232_test.pth" # name of model with .pth
 
 def evaluate_energy(model_name, positions):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -23,7 +23,7 @@ def evaluate_energy(model_name, positions):
     checkpoint = torch.load(path, map_location=device)
     state_dict = checkpoint["model_state_dict"]
     structure = reconstruct_SE_model(path)
-
+    print(positions.shape)
     positions = positions.to(device)
     nparticles = positions.shape[1]
     dim = positions.shape[2]
@@ -45,8 +45,9 @@ def evaluate_energy(model_name, positions):
     model.eval()
 
     trainer = Training(model) #initialize trainer to access energy_model method
-
-    energy = trainer.energy_model(positions) #retrieve energy for the given positions
+    positions = positions.to(device)
+    positions = positions.detach().clone().requires_grad_(True)
+    energy, E_K, V = trainer.energy_model(positions) #retrieve energy for the given positions
 
     with torch.no_grad():
         u = model(positions) #calculate the log(pos) for the wavefunction for the given positions
@@ -77,8 +78,8 @@ PINN_energies, PINN_log_wf = evaluate_energy(model_name, positions)
 
 
 PINN_log_wf_array = PINN_log_wf.reshape(-1)
-
-plt.plot(PINN_energies, label="PINN")
+samples = np.linspace(0,len(PINN_energies) ,len(PINN_energies))
+plt.scatter(samples, PINN_energies,s=2,label="PINN")
 plt.plot(energies, label="Analytical")
 plt.xlabel("Sample")
 plt.ylabel("Energy")
@@ -86,25 +87,21 @@ plt.legend()
 plt.show()
 
 
-if dim==1:
+if dim==1 and N==1:
     pos_array = positions.detach().cpu().numpy().reshape(-1)
+    print(pos_array)
     wf_square = np.exp(2 * PINN_log_wf_array)
 
-    idx = np.argsort(pos_array)
-
-    x_sorted = pos_array[idx]
-    wf_sorted = wf_square[idx]
-
     # Normalize PINN |psi|^2
-    norm = trapezoid(wf_sorted, x_sorted)
-    wf_sorted_norm = wf_sorted / norm
+    norm = trapezoid(wf_square, pos_array)
+    wf_norm = wf_sorted / norm
 
     # Analytical |psi|^2
     x = np.linspace(-3, 3, 500)
     psi_sq_true = (1 / np.sqrt(np.pi)) * np.exp(-x**2)
 
     # Plot unnormalized PINN
-    plt.plot(x_sorted, wf_sorted, label="PINN unnormalized", color="red")
+    plt.scatter(pos_array, wf_sorted, label="PINN unnormalized", color="red")
     plt.plot(x, psi_sq_true, label="Analytical", color="green")
     plt.xlabel("x")
     plt.ylabel(r"$|\psi(x)|^2$")
@@ -113,7 +110,7 @@ if dim==1:
     plt.show()
 
     # Plot normalized comparison
-    plt.scatter(x_sorted, wf_sorted_norm, s=5, label="PINN normalized",color="red")
+    plt.scatter(pos_array, wf_sorted_norm, s=5, label="PINN normalized",color="red")
     plt.plot(x, psi_sq_true, label="Analytical", color="green")
     plt.xlabel("x")
     plt.ylabel(r"$|\psi(x)|^2$")

@@ -70,11 +70,6 @@ class Model(nn.Module):
         # Pass input through the network
         return self.model(x)
 
-#model = Model(num_inputs=2, hidden_layers=[20,20,20,20], activation_function=nn.Tanh())
-#print(model(torch.tensor([[3.0, 3.0],[2.0, 2.0]])))
-
-
-
 
 class SE_Model(nn.Module):
     """
@@ -177,13 +172,13 @@ class SE_Model(nn.Module):
             # Pairwise displacement vectors: (B, N, N, dim)
             r_ij = x[:, :, None, :] - x[:, None, :, :]
 
-            # Pairwise distances: (B, N, N)
-            r_ij_abs = torch.linalg.norm(r_ij, dim=-1)
+            eps = 1e-20 #add epsilon for no divergence in hessian (try 1e-13/14?)
+            r_ij_abs = torch.sqrt(torch.sum(r_ij**2, dim=-1) + eps)
 
             # Extract unique pairs i < j
             iu = torch.triu_indices(self.N, self.N, offset=1, device=x.device)
             pair_dist = r_ij_abs[:, iu[0], iu[1]]      # shape (B, num_pairs)
-
+        
             # Feed distances through eta
             pair_dist_flat = pair_dist.reshape(-1, 1)  # shape (B*num_pairs, 1)
             eta_out = self.eta(pair_dist_flat)         # shape (B*num_pairs, eta_output)

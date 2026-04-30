@@ -47,8 +47,8 @@ class LossFunctions(nn.Module):
 
         input_tensor = positions.clone().requires_grad_(True)
 
-        E_loc = self.energy_model(input_tensor) # E_L(R) =  -1/2 [∇² logpsi(R) + |∇ logpsi(R)|²] + V(R)
-        residual = E_loc - self.energy
+        E_L, E_K, V = self.energy_model(input_tensor) # E_L(R) =  -1/2 [∇² logpsi(R) + |∇ logpsi(R)|²] + V(R)
+        residual = E_L - self.energy
        
         return torch.mean(residual**2)
         
@@ -116,7 +116,8 @@ class LossFunctions(nn.Module):
         grad_sq = torch.sum(grad_logpsi**2, dim=(1, 2)).unsqueeze(1)
 
         #calculate the local energy E_L for each position in the batch 
-        E_L = -0.5 * (lap_logpsi + grad_sq) + V 
+        E_K= -0.5 * (lap_logpsi + grad_sq) 
+        E_L = E_K +  V
 
-        return E_L
+        return E_L, E_K, V
     
