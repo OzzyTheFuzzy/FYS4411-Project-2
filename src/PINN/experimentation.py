@@ -2,12 +2,13 @@ import json
 import torch 
 import torch.nn as nn
 import matplotlib.pyplot as plt
-
+import numpy as np
 from training import Training
 from initialize_data import InitializeData
 from model import SE_Model, reconstruct_SE_model
+from PINN_vs_analytical import *
 
-model_name  = "2N_1D_GELU_323232_long" # name for saving model and logs
+model_name  = "1N_3D_t500k_600epoch" # name for saving model and logs
 
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -15,15 +16,17 @@ def train_and_evaluate():
     # Configuration
     width = 1.0      # Width of the Gaussian distribution for sampling collocation points
     a     = 0.0  #0.0043  for interactions   Hard-core radius (set to 0 for no interactions)
-    N     = 2         # Number of particles (dimensions)
-    dim   = 1         # Dimensionality of the particles
+    N     = 1         # Number of particles (dimensions)
+    dim   = 3         # Dimensionality of the particles
+    omega_z = 1.0      # Frequency of the harmonic trap in the z-direction
+    omega_ho = 1.0    # Frequency of the harmonic trap in the x and y directions
 
-    # Number of training points 
-    training_points = 50000
-
+    
     #  Training parameters
-    epochs      = 1000
-    num_batches = 50
+    training_points = 500000
+    epochs      = 600
+    batch_size  = 1000
+    num_batches = training_points // batch_size
     val_points  = 10000
     val_width   = 1.0 
     val_seed    = 42
@@ -42,16 +45,18 @@ def train_and_evaluate():
         "rho_hidden": [32, 32, 32], 
         "phi_hidden": [32, 32], #
         "eta_hidden": [32, 32],
-        "phi_output": 10,
-        "eta_output": 10,
+        "phi_output": 8,
+        "eta_output": 8,
         "activation_function": nn.GELU(),
         "alpha": 0.5,
         "beta": 1.0,
         "trainable_alpha": True,
+        "a": a,
+        "omega_z": omega_z,
+        "omega_ho": omega_ho
     }
     # Model initialization, with optimizer and scheduler
     model = SE_Model(**model_config)
-
 
     # Create an instance of the training class
     trainer = Training(model, val_points, val_width, val_seed)
@@ -59,7 +64,7 @@ def train_and_evaluate():
     optimizer = torch.optim.Adam(trainer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
     # train the model and get training results
-    loss, epochs, val_loss, epochs_val, best_model_state = trainer.training_cycle_SE(
+    loss, epoch_array, val_loss, epochs_val, best_model_state = trainer.training_cycle_SE(
             
             N_epochs=epochs,
             positions=positions,
@@ -81,33 +86,33 @@ def train_and_evaluate():
         "model_name": model_name,
         "model_config": json_config,
 
-        "energy_parameter_final": trainer.energy.detach().cpu().item(),
-        "energy_parameter_history": trainer.energy_model_array,
+        "energy_parameter_final": float(trainer.energy.detach().cpu().item()),
+        "energy_parameter_history": list(np.array(trainer.energy_model_array).tolist()),
 
-        "alpha_initial": model_config["alpha"],
-        "alpha_final": model.alpha.detach().cpu().item(),
-        "alpha_history": trainer.alpha_array,
+        "alpha_initial": float(model_config["alpha"]),
+        "alpha_final": float(model.alpha.detach().cpu().item()),
+        "alpha_history": list(np.array(trainer.alpha_array).tolist()),
+        "a": float(a),
+        "beta": float(model.beta.detach().cpu().item()),
+        "energy_std_val_final": float(np.sqrt(trainer.energy_val_var[-1])),
 
-        "beta": model.beta.detach().cpu().item(),
+        "learning_rate": float(lr),
+        "final_learning_rate": float(optimizer.param_groups[0]["lr"]),
 
-        "energy_mean_val_final": trainer.energy_val_mean[-1],
-        "energy_mean_val_history": trainer.energy_val_mean,
+       
+        "energy_mean_val_final": float(trainer.energy_val_mean[-1]),
+        "energy_mean_val_history": list(np.array(trainer.energy_val_mean).tolist()),
 
-        "energy_var_val_final": trainer.energy_val_var[-1],
-        "energy_var_val_history": trainer.energy_val_var,
+        "energy_var_val_final": float(trainer.energy_val_var[-1]),
+        "energy_var_val_history": list(np.array(trainer.energy_val_var).tolist()),
 
-        "energy_std_val_final": trainer.energy_val_var[-1]**0.5,
 
-        "learning_rate": lr,
-        "final_learning_rate": optimizer.param_groups[0]["lr"],
+        "training_points": int(training_points),
 
-        "a": a,
-        "training_points": training_points,
-
-        "epochs": epochs,
-        "train_loss": loss,
-        "val_loss": val_loss,
-        "epochs_val": epochs_val,
+        "epochs": list(np.array(epoch_array).tolist()),
+        "train_loss": list(np.array(loss).tolist()),
+        "val_loss": list(np.array(val_loss).tolist()),
+        "epochs_val": list(np.array(epochs_val).tolist()),
     }
     
     results["final_learning_rate"] = optimizer.param_groups[0]["lr"]
@@ -119,29 +124,31 @@ def train_and_evaluate():
     print(f"Saved logs to logs/{model_name}.json")
 
 
-def load_results(model_name):
-    with open(f"logs/{model_name}.json", "r") as f:
-        results = json.load(f)
-    return results
 
-def plot_loss_curves():
-    results = load_results(model_name)
+def check_energy(N, dim, beta=None, a=0.0):
 
-    loss = results["train_loss"]
-    epochs = results["epochs"]
-    val_loss = results["val_loss"]
-    epochs_val = results["epochs_val"]
+    positions, energies, n_samples, N_loaded, dim_loaded= load_positions_and_energy_from_params(
+        N=N,
+        d=dim,
+        beta=beta,
+        a=a
+    )
 
-    # Plot loss curve
-    plt.plot(epochs, loss, "o-", label="Training", color="blue")
-    plt.plot(epochs_val, val_loss, "o-", label="Validation loss", color="red")
-    plt.yscale("log")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.grid(True)
-    plt.title("Training and Validation Loss Curves")
-    plt.legend()
-    plt.show()
+    PINN_energies, PINN_log_wf = evaluate_energy(f'{model_name}.pth', positions, a=a)
+    
+    E_mean = PINN_energies.mean()
+    E_std = PINN_energies.std()
 
-#train_and_evaluate() # uncomment for training 
-plot_loss_curves() # for plotting the loss during training
+    print(f"N = {N}, d = {dim_loaded}, beta = {beta}, a = {a}")
+    print(f"PINN E_mean = {E_mean:.8f}")
+    print(f"PINN E_std  = {E_std:.8f}")
+
+    return positions, energies, PINN_energies, PINN_log_wf
+
+
+train_and_evaluate() # uncomment for training 
+plot_loss_curves(model_name) # for plotting the loss during training
+positions, energies, PINN_energies, PINN_log_wf = check_energy(N=1, dim=3, beta=None, a=0.0) # for evaluating the energy of the trained model
+plot_energies(PINN_energies, energies) # for plotting the energy of the trained model
+
+
