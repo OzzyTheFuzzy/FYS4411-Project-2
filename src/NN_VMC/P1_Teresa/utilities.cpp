@@ -23,6 +23,7 @@
 #include "Math/random.h"
 #include "particle.h"
 #include "sampler.h"
+#include "RBMsampler.h"
 #include "Solvers/montecarlo.h"
 
 #ifdef _OPENMP
@@ -63,6 +64,10 @@ RunResult runVMC(
     bool printToTerminal,
     bool storeEnergyHistory,
     bool useInteraction,
+    bool useRBM,
+    const std::vector<std::vector<double>>& a,
+    const std::vector<double>& b,
+    const std::vector<std::vector<std::vector<double>>>& W,
     double beta,
     double gamma,
     double hardCoreA,
@@ -125,7 +130,13 @@ RunResult runVMC(
         }
     } else {
         hamiltonian = std::make_unique<HarmonicOscillator>(omega, useNumericalLaplacian, hFD);
-        waveFunction = std::make_unique<SimpleGaussian>(alpha);
+
+        if (useRBM) {
+            waveFunction = std::make_unique<BoltzmannMachine>(a,b,W);
+        }
+        else {
+            waveFunction = std::make_unique<SimpleGaussian>(alpha);
+        }
     }
 
     auto system = std::make_unique<System>(
@@ -137,45 +148,65 @@ RunResult runVMC(
 
     system->runEquilibrationSteps(stepParam, nEquil);
 
-    auto t0 = std::chrono::high_resolution_clock::now();
-    auto sampler = system->runMetropolisSteps(
-        stepParam, 
-        nMetropolis, 
-        storeEnergyHistory,
-        storeDensityHist,
-        densityOnly,
-        densityBins,
-        densityZMax,
-        densityRhoMax
-    );
-    auto t1 = std::chrono::high_resolution_clock::now();
+    if (useRBM) {
+        auto t0 = std::chrono::high_resolution_clock::now();
+        auto sampler = system -> runRBMMetropolisSteps(
+            stepParam,
+            nMetropolis,
+            static_cast<unsigned int>(b.size()),
+            storeEnergyHistory
+        );
+        auto t1 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> dt = t1 - t0;
+        RunResult res;
+        res.cpu_seconds = dt.count();
+        res.energy = sampler->getEnergy();
+        res.gradienta = sampler -> getGradientA();
+        res.gradientb = sampler -> getGradientB();
+        res.gradientw = sampler -> getGradientW();
+        res.acceptance = sampler->getAcceptanceRatio();
 
-    std::chrono::duration<double> dt = t1 - t0;
-
-    RunResult res;
-    res.cpu_seconds = dt.count();
-    res.energy = sampler->getEnergy();
-    res.gradient = sampler -> getEnergyGradient();
-    res.acceptance = sampler->getAcceptanceRatio();
-
-    if (storeDensityHist) {
-        res.densityZ = sampler->getDensityZ();
-        res.densityRho = sampler->getDensityRho();
-        res.densityZCenters = sampler->getDensityZCenters();
-        res.densityRhoCenters = sampler->getDensityRhoCenters();
+        return res;
     }
+    else {
+        auto t0 = std::chrono::high_resolution_clock::now();
+        auto sampler = system->runMetropolisSteps(
+            stepParam, 
+            nMetropolis, 
+            storeEnergyHistory,
+            storeDensityHist,
+            densityOnly,
+            densityBins,
+            densityZMax,
+            densityRhoMax
+        );
+        auto t1 = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> dt = t1 - t0;
+        RunResult res;
+        res.cpu_seconds = dt.count();
+        res.energy = sampler->getEnergy();
+        res.gradient = sampler -> getEnergyGradient();
+        res.acceptance = sampler->getAcceptanceRatio();
 
-    // Store the energy values
-    if (storeEnergyHistory){
-        res.energyHistory = sampler ->getEnergyHistory();
+        if (storeDensityHist) {
+            res.densityZ = sampler->getDensityZ();
+            res.densityRho = sampler->getDensityRho();
+            res.densityZCenters = sampler->getDensityZCenters();
+            res.densityRhoCenters = sampler->getDensityRhoCenters();
+        }
+
+        // Store the energy values
+        if (storeEnergyHistory){
+            res.energyHistory = sampler ->getEnergyHistory();
+        }
+
+        if (printToTerminal) {
+            std::cout << "CPU time (production run): " << res.cpu_seconds << " s\n";
+            sampler->printOutputToTerminal(*system);
+        }
+    
+        return res;
     }
-
-    if (printToTerminal) {
-        std::cout << "CPU time (production run): " << res.cpu_seconds << " s\n";
-        sampler->printOutputToTerminal(*system);
-    }
-
-    return res;
 }
 
 ParallelRunResult runVMCReplicasParallel(
@@ -193,6 +224,10 @@ ParallelRunResult runVMCReplicasParallel(
     int nReplicas,
     bool storeEnergyHistory,
     bool useInteraction,
+    bool useRBM,
+    const std::vector<std::vector<double>>& a,
+    const std::vector<double>& b,
+    const std::vector<std::vector<std::vector<double>>>& W,
     double beta,
     double gamma,
     double hardCoreA 
@@ -226,6 +261,10 @@ ParallelRunResult runVMCReplicasParallel(
             false,   // avoid mixed terminal output from many threads
             storeEnergyHistory,
             useInteraction,
+            useRBM,
+            a,
+            b,
+            W,
             beta,
             gamma,
             hardCoreA
@@ -237,17 +276,35 @@ ParallelRunResult runVMCReplicasParallel(
     out.wall_seconds = dt.count();
 
     // Average the replica results
-    for (const auto& r : out.replicas) {
-        out.mean.energy += r.energy;
-        out.mean.gradient += r.gradient;
-        out.mean.acceptance += r.acceptance;
-        out.mean.cpu_seconds += r.cpu_seconds;
-    }
+    if (useRBM){
+        for (const auto& r : out.replicas) {
+            out.mean.energy += r.energy;
+            //out.mean.gradienta += r.gradienta;
+            //out.mean.gradientb += r.gradientb;
+            //out.mean.gradientw += r.gradientw;
+            out.mean.acceptance += r.acceptance;
+            out.mean.cpu_seconds += r.cpu_seconds;
+        }
+        out.mean.energy /= static_cast<double>(nReplicas);
+        //out.mean.gradienta /= static_cast<double>(nReplicas);
+        //out.mean.gradientb /= static_cast<double>(nReplicas);
+        //out.mean.gradientw /= static_cast<double>(nReplicas);
+        out.mean.acceptance /= static_cast<double>(nReplicas);
+        out.mean.cpu_seconds /= static_cast<double>(nReplicas);
 
-    out.mean.energy /= static_cast<double>(nReplicas);
-    out.mean.gradient /= static_cast<double>(nReplicas);
-    out.mean.acceptance /= static_cast<double>(nReplicas);
-    out.mean.cpu_seconds /= static_cast<double>(nReplicas);
+    }
+    else {
+        for (const auto& r : out.replicas) {
+            out.mean.energy += r.energy;
+            out.mean.gradient += r.gradient;
+            out.mean.acceptance += r.acceptance;
+            out.mean.cpu_seconds += r.cpu_seconds;
+        }
+        out.mean.energy /= static_cast<double>(nReplicas);
+        out.mean.gradient /= static_cast<double>(nReplicas);
+        out.mean.acceptance /= static_cast<double>(nReplicas);
+        out.mean.cpu_seconds /= static_cast<double>(nReplicas);
+    }
 
     // Spread across replica mean energies
     if (nReplicas > 1) {
@@ -278,6 +335,10 @@ std::pair<double,double> runAlphaScan(
     double hFD,
     const std::string& scanFile,
     bool useInteraction,
+    bool useRBM,
+    const std::vector<std::vector<double>>& a,
+    const std::vector<double>& b,
+    const std::vector<std::vector<std::vector<double>>>& W,
     double beta,
     double gamma,
     double hardCoreA
@@ -316,6 +377,10 @@ std::pair<double,double> runAlphaScan(
             false,
             false,
             useInteraction,
+            useRBM,
+            a,
+            b,
+            W,
             beta,
             gamma,
             hardCoreA

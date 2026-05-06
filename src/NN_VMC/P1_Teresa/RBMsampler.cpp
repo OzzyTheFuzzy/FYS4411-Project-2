@@ -7,6 +7,7 @@
 #include "system.h"
 #include "RBMsampler.h"
 #include "particle.h"
+#include "Hamiltonians/hamiltonian.h"
 #include "WaveFunctions/boltzmannmachine.h"
 
 using std::cout;
@@ -18,7 +19,12 @@ RBMSampler::RBMSampler(
     unsigned int numberOfHidden,
     double stepLength,
     unsigned int numberOfMetropolisSteps,
-    bool storeEnergyHistory
+    bool storeEnergyHistory,
+    bool storeDensityHist,
+    bool densityOnly,
+    unsigned int densityBins,
+    double zMax,
+    double rhoMax
 )
 {
     m_numberOfParticles = numberOfParticles;
@@ -52,6 +58,29 @@ RBMSampler::RBMSampler(
     m_gradientA = m_cumulativeDA;
     m_gradientB = m_cumulativeDB;
     m_gradientW = m_cumulativeDW;
+
+    m_storeDensityHist = storeDensityHist;
+    m_densityOnly = densityOnly;
+    m_densityBins = densityBins;
+    m_zMax = zMax;
+    m_rhoMax = rhoMax;
+
+    if (m_storeDensityHist) {
+        m_densityZCounts.assign(m_densityBins, 0.0);
+        m_densityRhoCounts.assign(m_densityBins, 0.0);
+        m_densityZ.assign(m_densityBins, 0.0);
+        m_densityRho.assign(m_densityBins, 0.0);
+        m_densityZCenters.assign(m_densityBins, 0.0);
+        m_densityRhoCenters.assign(m_densityBins, 0.0);
+
+        const double dz = 2.0 * m_zMax / static_cast<double>(m_densityBins);
+        const double drho = m_rhoMax / static_cast<double>(m_densityBins);
+
+        for (unsigned int i = 0; i < m_densityBins; ++i) {
+            m_densityZCenters[i]   = -m_zMax + (i + 0.5) * dz;
+            m_densityRhoCenters[i] = (i + 0.5) * drho;
+        }
+    }
 }
 
 void RBMSampler::sample(bool acceptedStep, System* system)
@@ -145,3 +174,19 @@ const std::vector<std::vector<double>>& RBMSampler::getGradientA() const { retur
 const std::vector<double>& RBMSampler::getGradientB() const { return m_gradientB; }
 const std::vector<std::vector<std::vector<double>>>& RBMSampler::getGradientW() const { return m_gradientW; }
 const std::vector<double>& RBMSampler::getEnergyHistory() const { return m_energyHistory; }
+
+const std::vector<double>& RBMSampler::getDensityZ() const {
+    return m_densityZ;
+}
+
+const std::vector<double>& RBMSampler::getDensityRho() const {
+    return m_densityRho;
+}
+
+const std::vector<double>& RBMSampler::getDensityZCenters() const {
+    return m_densityZCenters;
+}
+
+const std::vector<double>& RBMSampler::getDensityRhoCenters() const {
+    return m_densityRhoCenters;
+}

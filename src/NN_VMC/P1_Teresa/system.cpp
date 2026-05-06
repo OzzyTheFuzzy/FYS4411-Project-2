@@ -99,6 +99,7 @@ std::unique_ptr<class RBMSampler> System::runRBMMetropolisSteps(
     sampler->computeAverages();
     return sampler;
 }
+
 double System::computeLocalEnergy()
 {
     // Helper function

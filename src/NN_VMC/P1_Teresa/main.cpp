@@ -28,6 +28,9 @@
 // ./vmc bf an 50 3 --interact --a 0.0043 --gamma 2.82843 --beta 2.82843 --alpha 0.490065 --density-only --nojastrow  (with no jastrow factor)
 // ./vmc bf an 50 3 --interact --a 0.0043 --gamma 2.82843 --beta 2.82843 --alpha 0.490065 --density-only --bins 250 --zmax 4.0 --rhomax 3.0 (setting histogram resolution)
 
+// Example to use RBM:
+// ./vmc bf an 2 2 --rbm --alpha 0.5
+
 #include <iostream>
 #include <vector>
 #include <memory>
@@ -97,8 +100,8 @@ static void testRBMMilestone1()
 int main(int argc, char** argv) {
 
     // Testing some things with new RBM
-    testRBMMilestone1();
-    return 0;
+    //testRBMMilestone1();
+    //return 0;
 
     // Testing the "torch" library
     //torch::Tensor tensor = torch::eye(3);
@@ -166,6 +169,16 @@ int main(int argc, char** argv) {
     // Number of replicas with no paralelization by defaults
     int nReplicas = 1;
 
+    // RBM parameters
+    bool useRBM = true;
+    unsigned int Nh = 2;
+    std::vector<std::vector<double>> a(N, std::vector<double>(D, 0.0));
+    std::vector<double> b(Nh, 0.0);
+    std::vector<std::vector<std::vector<double>>> W(
+        N,
+        std::vector<std::vector<double>>(D, std::vector<double>(Nh, 0.01))
+    );
+
     // ---------------------Parse CLI---------------------
     // First parse bf/is, eval type, N, D
     if (argc > 1) {
@@ -224,6 +237,9 @@ int main(int argc, char** argv) {
                 std::cerr << "Unknown optimization method: " << optMethod << "\n";
                 return 1;
             }
+        }
+        if (tok == "--rbm") {
+            useRBM = true;
         }
         if (tok == "--replicas") {
             nReplicas = std::stoi(argv[i+1]);
@@ -297,7 +313,7 @@ int main(int argc, char** argv) {
             RunResult r = runVMC( N, D, optSteps, optEquil, omega, 
                                   alpha, stepParam, mode, 
                                   baseSeed + static_cast<int>(1000*alpha), 
-                                  false, hFD, false, false, useInteraction, beta, gamma, hardCoreA);
+                                  false, hFD, false, false, useInteraction, useRBM, a, b, W, beta, gamma, hardCoreA);
             ObjectiveResult out;
             out.energy = r.energy;
             out.gradient = r.gradient;
@@ -333,7 +349,7 @@ int main(int argc, char** argv) {
     } else {
         auto res = runAlphaScan ( N, D, scanSteps, scanEquil, omega, alphaMin,
                                   alphaMax, nAlpha, stepParam, mode, baseSeed,
-                                  hFD, scanFile, useInteraction, beta, gamma, hardCoreA);
+                                  hFD, scanFile, useInteraction, useRBM, a, b, W, beta, gamma, hardCoreA);
         bestAlpha = res.first;
         bestEnergy = res.second;
 
@@ -367,6 +383,10 @@ int main(int argc, char** argv) {
             false,
             false,
             useInteraction,
+            useRBM,
+            a,
+            b,
+            W,
             beta,
             gamma,
             hardCoreA,
@@ -417,6 +437,7 @@ int main(int argc, char** argv) {
     }
 
     std::string prodFile = txtDir + "final_energy" + modelTag + "_mode_"+ modeToString(mode);
+    if (useRBM) prodFile += "_RBM_";
     if (mode == Mode::Importance) prodFile += "_dt_" + doubleToTag(dt);
     prodFile += "_eval_" + evalToString((mode == Mode::Importance) ? EvalType::Analytic : productionEval);
     prodFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
@@ -445,6 +466,10 @@ int main(int argc, char** argv) {
         nReplicas,
         true,
         useInteraction,
+        useRBM,
+        a,
+        b,
+        W,
         beta,
         gamma,
         hardCoreA
@@ -455,8 +480,28 @@ int main(int argc, char** argv) {
         std::cerr << "Error: could not open " << prodFile << "\n";
         return 1;
     }
-    outProd << "# N D mode stepParam omega alpha eval replicas energy_mean gradient_mean acceptance_mean energy_std energy_stderr wall_seconds mean_replica_cpu_seconds\n";
-    outProd << N << " " << D << " " << modeToString(mode) << " "
+
+    if (useRBM) {
+        outProd << "# N D mode stepParam omega alpha eval replicas energy_mean acceptance_mean energy_std energy_stderr wall_seconds mean_replica_cpu_seconds\n";
+        outProd << N << " " << D << " " << modeToString(mode) << " "
+            << stepParam << " " << omega << " " << bestAlpha << " "
+            << (useNumericalLaplacian ? "nu" : "an") << " "
+            << nReplicas << " "
+            << std::setprecision(12)
+            << prodPar.mean.energy << " "
+            //<< prodPar.mean.gradienta << " "
+            //<< prodPar.mean.gradientb << " "
+            //<< prodPar.mean.gradientw << " "
+            << prodPar.mean.acceptance << " "
+            << prodPar.energy_std << " "
+            << prodPar.energy_stderr << " "
+            << prodPar.wall_seconds << " "
+            << prodPar.mean.cpu_seconds << "\n";
+
+    } 
+    else {
+        outProd << "# N D mode stepParam omega alpha eval replicas energy_mean gradient_mean acceptance_mean energy_std energy_stderr wall_seconds mean_replica_cpu_seconds\n";
+        outProd << N << " " << D << " " << modeToString(mode) << " "
             << stepParam << " " << omega << " " << bestAlpha << " "
             << (useNumericalLaplacian ? "nu" : "an") << " "
             << nReplicas << " "
@@ -468,6 +513,7 @@ int main(int argc, char** argv) {
             << prodPar.energy_stderr << " "
             << prodPar.wall_seconds << " "
             << prodPar.mean.cpu_seconds << "\n";
+    }
 
     outProd.close();
 

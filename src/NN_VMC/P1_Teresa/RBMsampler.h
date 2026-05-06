@@ -12,7 +12,12 @@ public:
         unsigned int numberOfHidden,
         double stepLength,
         unsigned int numberOfMetropolisSteps,
-        bool storeEnergyHistory = false
+        bool storeEnergyHistory = false,
+        bool storeDensityHist = false,
+        bool densityOnly = false,
+        unsigned int densityBins = 200,
+        double zMax = 4.0,
+        double rhoMax = 4.0
     );
 
     void sample(bool acceptedStep, class System* system);
@@ -27,6 +32,12 @@ public:
     const std::vector<std::vector<std::vector<double>>>& getGradientW() const;
 
     const std::vector<double>& getEnergyHistory() const;
+
+    // Density getters
+    const std::vector<double>& getDensityZ() const;
+    const std::vector<double>& getDensityRho() const;
+    const std::vector<double>& getDensityZCenters() const;
+    const std::vector<double>& getDensityRhoCenters() const;
 
 private:
     unsigned int m_stepNumber = 0;
@@ -57,4 +68,18 @@ private:
     std::vector<std::vector<double>> m_gradientA;
     std::vector<double> m_gradientB;
     std::vector<std::vector<std::vector<double>>> m_gradientW;
+
+    // Density-only mode
+    bool m_storeDensityHist = false;
+    bool m_densityOnly = false;
+    unsigned int m_densityBins = 200;
+    double m_zMax = 4.0;
+    double m_rhoMax = 4.0;
+
+    std::vector<double> m_densityZCounts;
+    std::vector<double> m_densityRhoCounts;
+    std::vector<double> m_densityZ;
+    std::vector<double> m_densityRho;
+    std::vector<double> m_densityZCenters;
+    std::vector<double> m_densityRhoCenters;
 };

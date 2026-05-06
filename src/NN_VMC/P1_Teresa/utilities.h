@@ -17,6 +17,9 @@ enum class EvalType { Analytic, Numerical };
 struct RunResult {
     double energy = 0.0;
     double gradient = 0.0;   // dE/dalpha from the VMC gradient estimator
+    std::vector<std::vector<double>> gradienta;
+    std::vector<double> gradientb;
+    std::vector<std::vector<std::vector<double>>> gradientw;
     double cpu_seconds = 0.0;
     double acceptance = 0.0;
 
@@ -59,6 +62,10 @@ RunResult runVMC(
     bool printToTerminal,
     bool storeEnergyHistory = false,
     bool useInteraction = false,
+    bool useRBM = false,
+    const std::vector<std::vector<double>>& a = {},
+    const std::vector<double>& b = {},
+    const std::vector<std::vector<std::vector<double>>>& W = {},
     double beta = 1.0,
     double gamma = 1.0,
     double hardCoreA = 0.0,
@@ -85,6 +92,10 @@ ParallelRunResult runVMCReplicasParallel(
     int nReplicas,
     bool storeEnergyHistory = false,
     bool useInteraction = false,
+    bool useRBM = false,
+    const std::vector<std::vector<double>>& a = {},
+    const std::vector<double>& b = {},
+    const std::vector<std::vector<std::vector<double>>>& W = {},
     double beta = 1.0,
     double gamma = 1.0,
     double hardCoreA = 0.0
@@ -105,6 +116,10 @@ std::pair<double,double> runAlphaScan(
     double hFD,
     const std::string& scanFile,
     bool useInteraction = false,
+    bool useRBM = false,
+    const std::vector<std::vector<double>>& a = {},
+    const std::vector<double>& b = {},
+    const std::vector<std::vector<std::vector<double>>>& W = {},
     double beta = 1.0,
     double gamma = 1.0,
     double hardCoreA = 0.0
