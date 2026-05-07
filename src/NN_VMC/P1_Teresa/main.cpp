@@ -59,49 +59,7 @@
 
 #include <torch/torch.h>
 
-static void testRBMMilestone1()
-{
-    const unsigned int N = 2;
-    const unsigned int D = 2;
-    const unsigned int Nh = 2;
-
-    // Small RBM parameters
-    std::vector<std::vector<double>> a(N, std::vector<double>(D, 0.0));
-    std::vector<double> b(Nh, 0.0);
-    std::vector<std::vector<std::vector<double>>> W(
-        N,
-        std::vector<std::vector<double>>(D, std::vector<double>(Nh, 0.01))
-    );
-
-    // Two particles in 2D
-    std::vector<std::unique_ptr<Particle>> particles;
-    particles.push_back(std::make_unique<Particle>(std::vector<double>{0.2, -0.1}));
-    particles.push_back(std::make_unique<Particle>(std::vector<double>{-0.3, 0.4}));
-
-    BoltzmannMachine rbm(a, b, W);
-    HarmonicOscillator ho(1.0, false, 1e-3);
-
-    const double psi = rbm.evaluate(particles);
-    const double lapPsi = rbm.computeDoubleDerivative(particles);
-    const double EL = ho.computeLocalEnergy(rbm, particles);
-
-    std::cout << "\n--- RBM Milestone 1 test ---\n";
-    std::cout << "Psi                = " << psi << "\n";
-    std::cout << "Laplacian Psi      = " << lapPsi << "\n";
-    std::cout << "Local energy       = " << EL << "\n";
-
-    if (!std::isfinite(psi) || !std::isfinite(lapPsi) || !std::isfinite(EL)) {
-        std::cerr << "RBM Milestone 1 FAILED: non-finite value detected.\n";
-    } else {
-        std::cout << "RBM Milestone 1 PASSED: all values are finite.\n";
-    }
-}
-
 int main(int argc, char** argv) {
-
-    // Testing some things with new RBM
-    //testRBMMilestone1();
-    //return 0;
 
     // Testing the "torch" library
     //torch::Tensor tensor = torch::eye(3);
@@ -112,7 +70,7 @@ int main(int argc, char** argv) {
     const int baseSeed = 2023;
 
     unsigned int N = 10;
-    unsigned int D = 2;
+    unsigned int D = 3;
 
     const double omega = 1.0;
 
@@ -120,7 +78,7 @@ int main(int argc, char** argv) {
     double stepLength = 0.5;
     double dt = 0.005;
 
-    Mode mode = Mode::BruteForce;
+    Mode mode = Mode::Importance;
     EvalType productionEval = EvalType::Analytic;
 
     // alpha scan settings
@@ -144,7 +102,7 @@ int main(int argc, char** argv) {
     const double hFD = 1e-3;
 
     // alpha selection mode
-    bool skipScan = false;
+    bool skipScan = true;
     double userAlpha = 0.5;
     bool useOptimization = false;
     std::string optMethod = "";
@@ -296,7 +254,7 @@ int main(int argc, char** argv) {
     double bestAlpha = alphaMin;
     double bestEnergy = std::numeric_limits<double>::infinity();
 
-    const std::string modelTag = useInteraction ? "_hs" : "_ideal";
+    const std::string modelTag = useInteraction ? "_interac" : "_";
 
     std::string scanFile = txtDir + "E_vs_alpha" + modelTag + "_mode_" + modeToString(mode);
     if (mode == Mode::Importance) scanFile += "_dt_" + doubleToTag(dt);
@@ -436,8 +394,8 @@ int main(int argc, char** argv) {
         useNumericalLaplacian = true;
     }
 
-    std::string prodFile = txtDir + "final_energy" + modelTag + "_mode_"+ modeToString(mode);
-    if (useRBM) prodFile += "_RBM_";
+    std::string prodFile = txtDir + "energy" + modelTag + "mode_"+ modeToString(mode);
+    if (useRBM) prodFile += "_RBM_hidden_" + std::to_string(Nh);
     if (mode == Mode::Importance) prodFile += "_dt_" + doubleToTag(dt);
     prodFile += "_eval_" + evalToString((mode == Mode::Importance) ? EvalType::Analytic : productionEval);
     prodFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
@@ -447,11 +405,18 @@ int main(int argc, char** argv) {
     histFile += "_eval_" + evalToString((mode == Mode::Importance) ? EvalType::Analytic : productionEval);
     histFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
+    std::string gradientFile = txtDir + "gradients" + modelTag + "mode_"+ modeToString(mode);
+    if (useRBM) gradientFile += "_RBM_hidden" + std::to_string(Nh);
+    if (mode == Mode::Importance) gradientFile += "_dt_" + doubleToTag(dt);
+    gradientFile += "_eval_" + evalToString((mode == Mode::Importance) ? EvalType::Analytic : productionEval);
+    gradientFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
+
     std::cout << "\n=== Production run with alpha=" << bestAlpha
               << " | local energy eval: " << (useNumericalLaplacian ? "numerical" : "analytic")
               << " | replicas=" << nReplicas
               << " ===\n";
 
+    /*
     ParallelRunResult prodPar = runVMCReplicasParallel(
         N, D,
         prodSteps,
@@ -474,6 +439,36 @@ int main(int argc, char** argv) {
         gamma,
         hardCoreA
     );
+    */
+
+    RunResult result = runVMC(
+        N, D,
+        prodSteps,
+        prodEquil,
+        omega,
+        bestAlpha,
+        stepParam,
+        mode,
+        baseSeed + 7777,
+        false,
+        hFD,
+        false,
+        false,
+        useInteraction,
+        useRBM,
+        a,
+        b,
+        W,
+        beta,
+        gamma,
+        hardCoreA,
+        densityOnly,
+        true,
+        useNoJastrow,
+        densityBins,
+        densityZMax,
+        densityRhoMax
+    );
 
     std::ofstream outProd(prodFile);
     if (!outProd) {
@@ -482,23 +477,65 @@ int main(int argc, char** argv) {
     }
 
     if (useRBM) {
-        outProd << "# N D mode stepParam omega alpha eval replicas energy_mean acceptance_mean energy_std energy_stderr wall_seconds mean_replica_cpu_seconds\n";
+        std::ofstream outGrad(gradientFile);
+        outGrad << "Gradients\n";
+        outGrad << "=========\n\n";
+        // Write a
+        outGrad << "Gradient_a (" << result.gradienta.size() << " x ";
+        if (!result.gradienta.empty()) outGrad << result.gradienta[0].size();
+        else outGrad << 0;
+        outGrad << ")\n";
+        for (size_t i = 0; i < result.gradienta.size(); ++i) {
+            outGrad << "Gradient_a[" << i << "] = ";
+            for (size_t d = 0; d < result.gradienta[i].size(); ++d) {
+                outGrad << result.gradienta[i][d];
+                if (d + 1 < result.gradienta[i].size()) outGrad << " ";
+            }
+            outGrad << "\n";
+        }
+        outGrad << "\n";
+        // Write b
+        outGrad << "Gradient_b (" << b.size() << ")\n";
+        outGrad << "Gradient_b = ";
+        for (size_t j = 0; j < result.gradientb.size(); ++j) {
+            outGrad << result.gradientb[j];
+            if (j + 1 < result.gradientb.size()) outGrad << " ";
+        }
+        outGrad << "\n\n";
+        // Write W
+        outGrad << "Gradient_W (" << result.gradientw.size() << " x ";
+        if (!result.gradientw.empty()) outGrad << result.gradientw[0].size();
+        else outGrad << 0;
+        outGrad << " x ";
+        if (!result.gradientw.empty() && !result.gradientw[0].empty()) outGrad << result.gradientw[0][0].size();
+        else outGrad << 0;
+        outGrad << ")\n";
+        for (size_t i = 0; i < result.gradientw.size(); ++i) {
+            outGrad << "Gradient_W[" << i << "] =\n";
+            for (size_t d = 0; d < result.gradientw[i].size(); ++d) {
+                outGrad << "  ";
+                for (size_t j = 0; j < result.gradientw[i][d].size(); ++j) {
+                    outGrad << result.gradientw[i][d][j];
+                    if (j + 1 < result.gradientw[i][d].size()) outGrad << " ";
+                }
+                outGrad << "\n";
+            }
+            outGrad << "\n";
+        }
+        outGrad.close();
+
+        outProd << "# N D mode stepParam eval replicas energy acceptance cpu_seconds\n";
         outProd << N << " " << D << " " << modeToString(mode) << " "
-            << stepParam << " " << omega << " " << bestAlpha << " "
+            << stepParam << " " 
             << (useNumericalLaplacian ? "nu" : "an") << " "
             << nReplicas << " "
             << std::setprecision(12)
-            << prodPar.mean.energy << " "
-            //<< prodPar.mean.gradienta << " "
-            //<< prodPar.mean.gradientb << " "
-            //<< prodPar.mean.gradientw << " "
-            << prodPar.mean.acceptance << " "
-            << prodPar.energy_std << " "
-            << prodPar.energy_stderr << " "
-            << prodPar.wall_seconds << " "
-            << prodPar.mean.cpu_seconds << "\n";
+            << result.energy << " "
+            << result.acceptance << " "
+            << result.cpu_seconds << "\n";
 
     } 
+    /*
     else {
         outProd << "# N D mode stepParam omega alpha eval replicas energy_mean gradient_mean acceptance_mean energy_std energy_stderr wall_seconds mean_replica_cpu_seconds\n";
         outProd << N << " " << D << " " << modeToString(mode) << " "
@@ -514,11 +551,14 @@ int main(int argc, char** argv) {
             << prodPar.wall_seconds << " "
             << prodPar.mean.cpu_seconds << "\n";
     }
+    */
 
     outProd.close();
 
     std::cout << "Saved production result to: " << prodFile << "\n";
+    std::cout << "Saved gradient result to: " << gradientFile << "\n";
 
+    /*
     std::ofstream outHist(histFile);
     if (!outHist) {
         std::cerr << "Error: could not open " << histFile << "\n";
@@ -536,8 +576,7 @@ int main(int argc, char** argv) {
     }
 
     outHist.close();
-
     std::cout << "Saved energy histories to: " << histFile << "\n";
-
+    */
     return 0;
 }

@@ -30,16 +30,16 @@ bool ImportanceSampling::step(
 
     const std::vector<double> oldPos = pos;
 
-    // Evaluate Psi and get alpha (SimpleGaussian: parameters[0] = alpha)
+    // Evaluate old wave function and old quantum force.
+    // The quantum force is computed:
+    //   - SimpleGaussian gives F = -4 alpha r
+    //   - BoltzmannMachine gives the RBM force
     const double psiOld = waveFunction.evaluate(particles);
-    const double alpha  = waveFunction.getParameters()[0];
+    const std::vector<double> F_old = waveFunction.computeQuantumForce(particles, i);
 
-    // Quantum force for SimpleGaussian: F = 2 ∇ ln Psi = -4α r
-    std::vector<double> F_old(D, 0.0);
-    for (unsigned int d = 0; d < D; d++) F_old[d] = -4.0 * alpha * oldPos[d];
-
-    // Propose new position with Langevin step:
-    // y = x + D*F(x)*dt + ξ*sqrt(dt),  ξ ~ N(0,1)
+    // Propose new position using Langevin / Fokker-Planck step:
+    //   R_new = R_old + D_diff * F_old * dt + sqrt(dt) * eta
+    // where eta is a standard normal random vector.
     std::vector<double> newPos = oldPos;
     const double sqrtDt = std::sqrt(timeStep);
     for (unsigned int d = 0; d < D; d++) {
@@ -51,13 +51,10 @@ bool ImportanceSampling::step(
     pos = newPos;
 
     const double psiNew = waveFunction.evaluate(particles);
-
-    // Quantum force at new position
-    std::vector<double> F_new(D, 0.0);
-    for (unsigned int d = 0; d < D; d++) F_new[d] = -4.0 * alpha * newPos[d];
+    const std::vector<double> F_new = waveFunction.computeQuantumForce(particles, i);
 
     // Green's function ratio: G(old|new)/G(new|old)
-    // G(y,x) ∝ exp(-(y-x-D dt F(x))^2/(4 D dt))
+    // G(y,x) ∝ exp[-(y - x - D_diff dt F(x))^2 / (4 D_diff dt)].
     double sumA2 = 0.0; // (old - new - D dt F_new)^2
     double sumB2 = 0.0; // (new - old - D dt F_old)^2
     for (unsigned int d = 0; d < D; d++) {
@@ -67,12 +64,22 @@ bool ImportanceSampling::step(
         sumB2 += B * B;
     }
 
-    const double logG = -(sumA2 - sumB2) / (4.0 * m_diffusion * timeStep);
-    const double greensRatio = std::exp(logG);
+    const double logGreensRatio = -(sumA2 - sumB2) / (4.0 * m_diffusion * timeStep);
 
-    const double probRatio = greensRatio * (psiNew * psiNew) / (psiOld * psiOld);
+    // Probability ratio:
+    //   A = [G(old|new)/G(new|old)] * |Psi_new|^2 / |Psi_old|^2
+    // Since the present wave functions are positive, we can use
+    //   log A = logG + 2(log Psi_new - log Psi_old).
+    if (psiOld <= 0.0 || psiNew <= 0.0) {
+        pos = oldPos;
+        return false;
+    }
 
-    if (probRatio >= 1.0 || m_rng->nextDouble() < probRatio) {
+    const double logProbabilityRatio =
+        logGreensRatio + 2.0 * (std::log(psiNew) - std::log(psiOld));
+
+    if (logProbabilityRatio >= 0.0 ||
+        std::log(m_rng->nextDouble()) < logProbabilityRatio) {
         return true; // accept
     } else {
         pos = oldPos; // reject

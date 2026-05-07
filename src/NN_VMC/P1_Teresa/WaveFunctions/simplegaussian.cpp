@@ -52,6 +52,23 @@ double SimpleGaussian::computeDoubleDerivative(std::vector<std::unique_ptr<class
     return psi * (-2.0 * alpha * D * N + 4.0 * alpha * alpha * sum_r2);
 }
 
+std::vector<double> SimpleGaussian::computeQuantumForce(std::vector<std::unique_ptr<class Particle>>& particles, unsigned int particleIndex) {
+    const double alpha = m_parameters[0];
+
+    const std::vector<double>& r = particles[particleIndex]->getPosition();
+    std::vector<double> force(r.size(), 0.0);
+
+    // For Psi = exp(-alpha * sum r_i^2):
+    //
+    //   grad_i ln Psi = -2 alpha r_i
+    //   F_i = 2 grad_i ln Psi = -4 alpha r_i
+    for (unsigned int d = 0; d < r.size(); d++) {
+        force[d] = -4.0 * alpha * r[d];
+    }
+
+    return force;
+}
+
 double SimpleGaussian::computeLogDerivativeAlpha(std::vector<std::unique_ptr<class Particle>>& particles)
 {
     // O_alpha(R) = d/dalpha ln Psi_alpha(R)

@@ -38,7 +38,17 @@ BoltzmannMachine::BoltzmannMachine(
     std::vector<double> b,
     std::vector<std::vector<std::vector<double>>> w
 ) : m_a(a), m_b(b), m_w(w), m_nParticles(a.size()),
-m_nDim(a[0].size()), m_nHidden(b.size()) {}
+m_nDim(a[0].size()), m_nHidden(b.size()) {
+    // Number of trainable RBM parameters:
+    //
+    //   a[p][d]      -> N_particles * D
+    //   b[h]         -> N_hidden
+    //   w[p][d][h]   -> N_particles * D * N_hidden
+    m_numberOfParameters =
+        m_nParticles * m_nDim
+        + m_nHidden
+        + m_nParticles * m_nDim * m_nHidden;
+}
 
 // Compute the hidden-layer activation
 //
@@ -46,9 +56,7 @@ m_nDim(a[0].size()), m_nHidden(b.size()) {}
 //
 // Returns a vector Q of size m_nHidden.
 // Each Q[h] corresponds to one hidden node.
-std::vector<double> BoltzmannMachine::QFac(
-    std::vector<std::unique_ptr<class Particle>>& particles) 
-{
+std::vector<double> BoltzmannMachine::QFac(std::vector<std::unique_ptr<class Particle>>& particles) {
     std::vector<double> Q(m_nHidden, 0.0);
 
     for (int h =0; h < m_nHidden; h++) {
@@ -72,9 +80,7 @@ std::vector<double> BoltzmannMachine::QFac(
 //   Psi2 = prod_h ( 1 + exp(Q_h) )
 //
 // Here sigma = 1.0, so sigma^2 = 1.
-double BoltzmannMachine::evaluate(
-    std::vector<std::unique_ptr<class Particle>>& particles) 
-{
+double BoltzmannMachine::evaluate(std::vector<std::unique_ptr<class Particle>>& particles) {
     double sigma = 1.0;
     double sig2 = sigma * sigma;
 
@@ -106,9 +112,7 @@ double BoltzmannMachine::evaluate(
 // This is needed for the kinetic term in the local energy:
 //
 //   E_L = -1/2 * (nabla^2 Psi / Psi) + V(R)
-double BoltzmannMachine::computeDoubleDerivative(
-    std::vector<std::unique_ptr<class Particle>>& particles)
-{
+double BoltzmannMachine::computeDoubleDerivative(std::vector<std::unique_ptr<class Particle>>& particles){
     const double sigma = 1.0;
     const double sig2 = sigma * sigma;
     const double sig4 = sig2 * sig2;
@@ -142,6 +146,38 @@ double BoltzmannMachine::computeDoubleDerivative(
     }
 
     return psi * sum;
+}
+
+// RBM quantum force:
+//   F_{p,d} = 2 * d ln Psi / d X_{p,d}
+// with
+//   d ln Psi / d X_{p,d}
+//      = -(X_{p,d} - a_{p,d}) / sigma^2
+//        + sum_h w_{p,d,h} sigmoid(Q_h) / sigma^2
+// where
+//   sigmoid(Q_h) = 1 / (1 + exp(-Q_h)).
+std::vector<double> BoltzmannMachine::computeQuantumForce(std::vector<std::unique_ptr<class Particle>>& particles, unsigned int particleIndex) {
+    const double sigma = 1.0;
+    const double sig2 = sigma * sigma;
+
+    const std::vector<double> Q = QFac(particles);
+    const std::vector<double>& r = particles[particleIndex]->getPosition();
+
+    std::vector<double> force(m_nDim, 0.0);
+
+    for (int d = 0; d < m_nDim; d++) {
+        const double Xpd = r[d];
+        double dlnpsi = -(Xpd - m_a[particleIndex][d]) / sig2;
+
+        for (int h = 0; h < m_nHidden; h++) {
+            const double sigmoid = 1.0 / (1.0 + std::exp(-Q[h]));
+            dlnpsi += (m_w[particleIndex][d][h] / sig2) * sigmoid;
+        }
+
+        force[d] = 2.0 * dlnpsi;
+    }
+
+    return force;
 }
 
 // Compute logarithmic derivatives of the RBM wave function

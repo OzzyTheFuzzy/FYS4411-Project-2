@@ -18,6 +18,13 @@ public:
     // Sum of Laplacians acting on the wave function
     virtual double computeDoubleDerivative(std::vector<std::unique_ptr<class Particle>>& particles) = 0;
 
+    // Quantum force for importance sampling:
+    //   F_i(R) = 2 * grad_i ln Psi(R)
+    // Returns a vector of size D containing the force acting on particle
+    virtual std::vector<double> computeQuantumForce(std::vector<std::unique_ptr<class Particle>>& particles, unsigned int particleIndex) {
+        throw std::logic_error("Quantum force not implemented for this wave function.");
+    }
+
     // Logarithmic derivative with respect to alpha:
     // O_alpha(R) = d/dalpha ln Psi_alpha(R)
     // Needed for the VMC energy gradient estimator

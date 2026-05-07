@@ -14,6 +14,8 @@ public:
     // Analytic Laplacian of the Gaussian wave function
     double computeDoubleDerivative(std::vector<std::unique_ptr<class Particle>>& particles) override;
     
+    std::vector<double> computeQuantumForce(std::vector<std::unique_ptr<class Particle>>& particles, unsigned int particleIndex) override;
+
     // Logarithmic derivative with respect to alpha:
     // For Psi = exp(-alpha * sum r_i^2), this is just -sum r_i^2
     double computeLogDerivativeAlpha (

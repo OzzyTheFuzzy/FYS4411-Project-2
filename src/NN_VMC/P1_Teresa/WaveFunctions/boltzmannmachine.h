@@ -21,10 +21,10 @@ public:
     double evaluate(std::vector<std::unique_ptr<class Particle>>& particles) override;
     std::vector<double> QFac(std::vector<std::unique_ptr<class Particle>>& particles);
     double computeDoubleDerivative(std::vector<std::unique_ptr<class Particle>>& particles) override;
+    std::vector<double> computeQuantumForce(std::vector<std::unique_ptr<class Particle>>& particles,unsigned int particleIndex) override;
     
     // New RBM-specific parameter derivatives
-    RBMParameterDerivatives computeParameterDerivatives(
-        std::vector<std::unique_ptr<class Particle>>& particles);
+    RBMParameterDerivatives computeParameterDerivatives(std::vector<std::unique_ptr<class Particle>>& particles);
 
 private:
     std::vector<std::vector<double>> m_a;

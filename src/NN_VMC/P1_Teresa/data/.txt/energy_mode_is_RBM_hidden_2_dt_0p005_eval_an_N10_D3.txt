@@ -1,0 +1,2 @@
+# N D mode stepParam eval replicas energy acceptance cpu_seconds
+10 3 is 0.005 an 1 15.0047855706 0.999835968018 10.90142989
