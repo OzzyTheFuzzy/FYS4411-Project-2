@@ -47,9 +47,13 @@ class LossFunctions(nn.Module):
 
         input_tensor = positions.clone().requires_grad_(True)
 
-        E_loc = self.energy_model(input_tensor) # E_L(R) =  -1/2 [∇² logpsi(R) + |∇ logpsi(R)|²] + V(R)
-        residual = E_loc - self.energy
-       
+        E_L, E_K, V = self.energy_model(input_tensor) # E_L(R) =  -1/2 [∇² logpsi(R) + |∇ logpsi(R)|²] + V(R)
+        residual = E_L - self.energy
+
+        if self.model.a > 0.0:
+            J = self.jastrow(input_tensor)
+            residual = residual + J
+            
         return torch.mean(residual**2)
         
        
@@ -64,7 +68,10 @@ class LossFunctions(nn.Module):
         """
 
         def logpsi_single(x):
-            return self.model(x.unsqueeze(0))[0, 0]
+            """function to compute logpsi for a single position x of shape (N, dim)"""
+            nn_out = self.model(x.unsqueeze(0))[0, 0]
+
+            return nn_out            
 
         grad_fn = grad(logpsi_single)
         hess_fn = jacrev(grad_fn)
@@ -99,7 +106,19 @@ class LossFunctions(nn.Module):
                 self.model.omega_ho**2 * xy_sq +
                 self.model.omega_z**2 * z_sq
             )
+        
+        # If interactions are included, add hard-core potential
+        if self.model.a > 0.0 and self.model.N >= 2:
+            eps = 1e-12
+            r_ij = positions[:, :, None, :] - positions[:, None, :, :]          # (B, N, N, dim)
+            r_ij_abs = torch.sqrt(torch.sum(r_ij**2, dim=-1) + eps)             # (B, N, N)
+            iu = torch.triu_indices(self.model.N, self.model.N, offset=1, device=positions.device)
+            pair_dist = r_ij_abs[:, iu[0], iu[1]]                               # (B, num_pairs)
 
+            # Infinite wall: add large penalty where r_ij <= a
+            inside_core = (pair_dist <= self.model.a).any(dim=1).float()        # (B,)
+            V = V + inside_core * 1e6
+            
         return V.unsqueeze(1)
     
     def energy_model(self, positions):
@@ -116,7 +135,23 @@ class LossFunctions(nn.Module):
         grad_sq = torch.sum(grad_logpsi**2, dim=(1, 2)).unsqueeze(1)
 
         #calculate the local energy E_L for each position in the batch 
-        E_L = -0.5 * (lap_logpsi + grad_sq) + V 
+        E_K= -0.5 * (lap_logpsi + grad_sq) 
+        E_L = E_K +  V
 
-        return E_L
+        return E_L, E_K, V
     
+    def jastrow_single(self, x):
+        a   = self.model.a
+        eps = 1e-12
+        N   = x.shape[0]
+        J   = x.new_zeros(())
+
+        if N < 2 or a == 0.0:
+            return J
+
+        for i in range(N):
+            for j in range(i + 1, N):
+                r_ij = torch.sqrt(((x[i] - x[j]) ** 2).sum() + eps)
+                f_ij = 1.0 - a / r_ij
+                J    = J + torch.log(torch.clamp(f_ij, min=eps))
+        return J

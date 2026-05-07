@@ -70,11 +70,6 @@ class Model(nn.Module):
         # Pass input through the network
         return self.model(x)
 
-#model = Model(num_inputs=2, hidden_layers=[20,20,20,20], activation_function=nn.Tanh())
-#print(model(torch.tensor([[3.0, 3.0],[2.0, 2.0]])))
-
-
-
 
 class SE_Model(nn.Module):
     """
@@ -100,18 +95,23 @@ class SE_Model(nn.Module):
         eta_hidden,
         phi_output,
         eta_output,
+        a,
+        omega_z=1.0,
+        omega_ho=1.0,
         activation_function=nn.Tanh(),
         alpha=0.5,
         beta=1.0,
         trainable_alpha=False
+        
     ):
         super().__init__()
 
         self.dim = dim
         self.N = N
-        self.omega_ho = 1.0
-        self.omega_z = 1.0
-
+        self.a = a
+        self.omega_ho = omega_ho
+        self.omega_z = omega_z
+        
         self.phi = Model(
             num_inputs=dim,
             num_outputs=phi_output,
@@ -177,13 +177,13 @@ class SE_Model(nn.Module):
             # Pairwise displacement vectors: (B, N, N, dim)
             r_ij = x[:, :, None, :] - x[:, None, :, :]
 
-            # Pairwise distances: (B, N, N)
-            r_ij_abs = torch.linalg.norm(r_ij, dim=-1)
+            eps = 1e-16 #add epsilon for no divergence in hessian (try 1e-13/14?)
+            r_ij_abs = torch.sqrt(torch.sum(r_ij**2, dim=-1) + eps)
 
             # Extract unique pairs i < j
             iu = torch.triu_indices(self.N, self.N, offset=1, device=x.device)
             pair_dist = r_ij_abs[:, iu[0], iu[1]]      # shape (B, num_pairs)
-
+        
             # Feed distances through eta
             pair_dist_flat = pair_dist.reshape(-1, 1)  # shape (B*num_pairs, 1)
             eta_out = self.eta(pair_dist_flat)         # shape (B*num_pairs, eta_output)
@@ -203,19 +203,25 @@ class SE_Model(nn.Module):
         return u_theta 
     
 
+def test_create_model():
+    model = SE_Model(
+        dim=2,
+        N=3,
+        rho_hidden=[20, 20],
+        phi_hidden=[20, 20],
+        eta_hidden=[20, 20],
+        phi_output=10,
+        eta_output=10,
+        activation_function=nn.Tanh(),
+        alpha=0.5,
+        beta=1.0,
+        trainable_parameters=False
+    )
+    return model
+
 """
-model=SE_Model(
-    dim=2,
-    N=3,
-    rho_hidden=[20, 20],
-    phi_hidden=[20, 20],
-    eta_hidden=[20, 20],
-    phi_output=10,
-    eta_output=10,
-    activation_function=nn.Tanh(),
-    alpha=0.5,
-    beta=1.0,
-    trainable_parameters=False)
+model = test_create_model() # for testing model creation and weight initialization
+
 """
 
 
@@ -262,6 +268,7 @@ def reconstruct_SE_model(path):
     # Trick: look at rho input size = phi_output + eta_output
     rho_input = rho_layers[0][1]
 
+    """
     print("🔹 Inferred architecture:\n")
     print(f"dim = {dim}")
     print(f"phi_hidden = {phi_hidden}")
@@ -269,7 +276,7 @@ def reconstruct_SE_model(path):
     print(f"eta_hidden = {eta_hidden}")
     print(f"eta_output = {eta_output}")
     print(f"rho_hidden = {rho_hidden}")
-
+    """
     return {
         "dim": dim,
         "phi_hidden": phi_hidden,
