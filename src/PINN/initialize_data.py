@@ -69,7 +69,7 @@ class InitializeData:
         while total_needed > 0 and tries < max_tries:
             tries += 1
 
-            candidates = width * torch.randn(
+            candidates_1 = width * torch.randn(
                 total_needed,
                 self.N,
                 self.dim,
@@ -77,7 +77,23 @@ class InitializeData:
                 device=self.device,
                 dtype=self.dtype
             )
+            candidates_2 = width * 1.5 * torch.randn(
+                total_needed,
+                self.N,
+                self.dim,
+                generator=g,
+                device=self.device,
+                dtype=self.dtype
+            )
+            candidates = torch.cat([candidates_1, candidates_2], dim=0)
 
+            perm = torch.randperm(
+                candidates.shape[0],
+                generator=g,
+                device=self.device
+            )
+
+            candidates = candidates[perm]
             valid_mask = self.valid_hard_core(candidates)
 
             if valid_mask.any():
