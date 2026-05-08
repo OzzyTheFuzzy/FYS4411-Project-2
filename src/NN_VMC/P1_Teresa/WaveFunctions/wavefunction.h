@@ -32,6 +32,10 @@ public:
         throw std::logic_error("Single-parameter logarithmic derivative not implemented.");
     }
 
+    virtual std::vector<double> computeLogParDer(std::vector<std::unique_ptr<class Particle>>& particles) {
+        return std::vector<double>();
+    }
+
 protected:
     int m_numberOfParameters = 0;
     std::vector<double> m_parameters = std::vector<double>();

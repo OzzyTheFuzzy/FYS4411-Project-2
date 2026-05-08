@@ -22,7 +22,7 @@
 
 // Example runing interacting case:
 // ./vmc bf an 10 3 --interact --a 0.0043 --gamma 2.82843 --beta 2.82843 --alpha 0.48 --replicas 4 (This fixes alpha value and applies paralelization)
- 
+
 // Example to obtain one-body densities:
 // ./vmc bf an 50 3 --interact --a 0.0043 --gamma 2.82843 --beta 2.82843 --alpha 0.490065 --density-only (with Jastrow factor)
 // ./vmc bf an 50 3 --interact --a 0.0043 --gamma 2.82843 --beta 2.82843 --alpha 0.490065 --density-only --nojastrow  (with no jastrow factor)
@@ -43,9 +43,12 @@
 #include <cmath>
 
 #include "system.h"
+#include "WaveFunctions/anisotropicgaussian.h"
 #include "WaveFunctions/simplegaussian.h"
 #include "WaveFunctions/boltzmannmachine.h"
+#include "WaveFunctions/nn_envelope.h"
 #include "Hamiltonians/harmonicoscillator.h"
+#include "Hamiltonians/repulsiveho.h"
 #include "InitialStates/initialstate.h"
 #include "Solvers/metropolis.h"
 #include "Solvers/importancesampling.h"
@@ -53,9 +56,11 @@
 #include "particle.h"
 #include "sampler.h"
 #include "RBMsampler.h"
+#include "NNsampler.h"
 #include "Solvers/montecarlo.h"
 #include "optimizer.h"
 #include "utilities.h"
+#include "common.h"
 
 #include <torch/torch.h>
 
@@ -104,7 +109,7 @@ int main(int argc, char** argv) {
     // alpha selection mode
     bool skipScan = true;
     double userAlpha = 0.5;
-    bool useOptimization = false;
+    short useOptimization = 0;
     std::string optMethod = "";
 
     // Interaction case
@@ -137,6 +142,17 @@ int main(int argc, char** argv) {
         std::vector<std::vector<double>>(D, std::vector<double>(Nh, 0.01))
     );
 
+    // NN parameters
+    bool useNN = false;
+    const int Nhid = 32;
+    const double lr = 1e-3;
+    const int nPretrainSteps = 5000;   // maximize K
+    const int nEnergySteps = 40000;  // minimize E
+    const int nSamples = 10000;  // Metropolis steps per update
+    const double initRange = 1.0;   // for particle setup
+    const double strengthRate = 20;   // hardcore potential strength increase per step
+    auto wf_train = AnisotropicGaussian(0.5, beta); // Non-interacting training target
+
     // ---------------------Parse CLI---------------------
     // First parse bf/is, eval type, N, D
     if (argc > 1) {
@@ -156,7 +172,8 @@ int main(int argc, char** argv) {
                 if (token == "nu") {
                     std::cerr << "Error: numerical Laplacian option 'nu' is not allowed with importance sampling.\n";
                     return 1;
-                } else if (token == "an") {
+                }
+                else if (token == "an") {
                     idx++;
                 }
             }
@@ -165,7 +182,8 @@ int main(int argc, char** argv) {
 
             productionEval = EvalType::Analytic; // forced for is
 
-        } else { // bf
+        }
+        else { // bf
             mode = Mode::BruteForce;
 
             int idx = 2;
@@ -190,8 +208,12 @@ int main(int argc, char** argv) {
         if (tok == "--opt") {
             optMethod = argv[i + 1];
             if (optMethod == "bfgs") {
-                useOptimization = true;
-            } else {
+                useOptimization = 1;
+            }
+            else if (optMethod == "doubleAdam") {
+                useOptimization = 2;
+            }
+            else {
                 std::cerr << "Unknown optimization method: " << optMethod << "\n";
                 return 1;
             }
@@ -199,8 +221,11 @@ int main(int argc, char** argv) {
         if (tok == "--rbm") {
             useRBM = true;
         }
+        if (tok == "--NN") {
+            useNN = true;
+        }
         if (tok == "--replicas") {
-            nReplicas = std::stoi(argv[i+1]);
+            nReplicas = std::stoi(argv[i + 1]);
             if (nReplicas < 1) {
                 std::cerr << "Error: --replicas must be >= 1\n";
                 return 1;
@@ -242,11 +267,12 @@ int main(int argc, char** argv) {
     const double stepParam = (mode == Mode::Importance) ? dt : stepLength;
 
     std::cout << "\n=== Mode: " << modeToString(mode)
-              << " | Production eval: " << evalToString(productionEval)
-              << " | N=" << N << " D=" << D << " ===\n";
+        << " | Production eval: " << evalToString(productionEval)
+        << " | N=" << N << " D=" << D << " ===\n";
     if (mode == Mode::Importance) {
         std::cout << "Using dt = " << dt << "\n";
-    } else {
+    }
+    else {
         std::cout << "Using stepLength = " << stepLength << "\n";
     }
 
@@ -259,24 +285,24 @@ int main(int argc, char** argv) {
     std::string scanFile = txtDir + "E_vs_alpha" + modelTag + "_mode_" + modeToString(mode);
     if (mode == Mode::Importance) scanFile += "_dt_" + doubleToTag(dt);
     scanFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
-    
+
     if (skipScan) {
         bestAlpha = userAlpha;
         std::cout << "Skipping alpha scan. Using alpha = " << bestAlpha << "\n";
-
-    } else if (useOptimization){
+    }
+    else if (useOptimization == 1) {
         std::cout << "Running BFGS-style optimization for alpha...\n";
-        
+
         auto objective = [&](double alpha) -> ObjectiveResult {
-            RunResult r = runVMC( N, D, optSteps, optEquil, omega, 
-                                  alpha, stepParam, mode, 
-                                  baseSeed + static_cast<int>(1000*alpha), 
-                                  false, hFD, false, false, useInteraction, useRBM, a, b, W, beta, gamma, hardCoreA);
+            RunResult r = runVMC(N, D, optSteps, optEquil, omega,
+                alpha, stepParam, mode,
+                baseSeed + static_cast<int>(1000 * alpha),
+                false, hFD, false, false, useInteraction, useRBM, a, b, W, beta, gamma, hardCoreA);
             ObjectiveResult out;
             out.energy = r.energy;
             out.gradient = r.gradient;
             return out;
-        };
+            };
 
         std::string optFile = txtDir + "opt_path" + modelTag + "_mode_" + modeToString(mode);
         if (mode == Mode::Importance) optFile += "_dt_" + doubleToTag(dt);
@@ -300,19 +326,115 @@ int main(int argc, char** argv) {
 
         std::cout << "Optimization finished after " << opt.iterations << " iterations\n";
         std::cout << "Optimal alpha = " << bestAlpha
-                  << ", energy = " << bestEnergy
-                  << ", gradient = " << opt.gradient_opt
-                  << ", converged = " << opt.converged << "\n";
+            << ", energy = " << bestEnergy
+            << ", gradient = " << opt.gradient_opt
+            << ", converged = " << opt.converged << "\n";
 
-    } else {
-        auto res = runAlphaScan ( N, D, scanSteps, scanEquil, omega, alphaMin,
-                                  alphaMax, nAlpha, stepParam, mode, baseSeed,
-                                  hFD, scanFile, useInteraction, useRBM, a, b, W, beta, gamma, hardCoreA);
+    }
+    else if (useOptimization == 2) {
+        int seedNN = std::chrono::system_clock::now().time_since_epoch().count();
+        auto rng = std::make_unique<Random>(seedNN);
+        std::unique_ptr<MonteCarlo> solver;
+        if (mode == Mode::Importance) {
+            solver = std::make_unique<ImportanceSampling>(std::move(rng), 0.5);
+        }
+        else {
+            solver = std::make_unique<Metropolis>(std::move(rng));
+        }
+        std::vector<std::unique_ptr<Particle>> particles;
+
+        auto wf_nn = std::make_unique<NN_envelope>(N, D, N, Nhid);
+        torch::optim::Adam optimizer(
+            wf_nn->net().parameters(),
+            torch::optim::AdamOptions(lr).betas({ 0.9, 0.999 }).eps(1e-8)
+        );
+
+        // -------- PRE-TRAINING --------
+        std::cout << "Running Adam optimization without interactions...\n";
+
+        auto hamiltonian = std::make_unique<RepulsiveHO>(omega, gamma * omega, 0);
+        
+        if (useInteraction) {
+            particles = setupRandomUniformInitialStateNoOverlap(
+                initRange, D, N, hardCoreA, *rng
+            );
+        }
+        else {
+            particles = setupRandomUniformInitialState(
+                initRange, D, N, *rng
+            );
+        }
+        auto system_pretrain = std::make_unique<System>(
+            std::move(hamiltonian),
+            std::move(wf_nn),
+            std::move(solver),
+            std::move(particles)
+        );
+
+        for (int step = 0; step < nPretrainSteps; step++) {
+            system_pretrain->runEquilibrationSteps(stepParam, optEquil);
+            auto sampler_pretrain = system_pretrain->runMetropolisSteps_NN(stepParam, nSamples, wf_train);
+            auto dKdW = sampler_pretrain->get_dKdW();
+            // Negate: Adam minimizes, but we want to maximize K
+            for (auto& g : dKdW) g = -g;
+
+            optimizer.zero_grad();
+            setNetworkGrads(wf_nn->net(), dKdW);
+            optimizer.step();
+
+            if (step % 500 == 0)
+                std::cout << "  step " << step
+                << "  K = " << sampler_pretrain->get_K() << "\n";
+        }
+
+        // -------- TRAINING --------
+        std::cout << "Running Adam optimization with interactions...\n";
+
+        hamiltonian = std::make_unique<RepulsiveHO>(omega, gamma * omega, hardCoreA);
+        if (useInteraction) {
+            particles = setupRandomUniformInitialStateNoOverlap(
+                initRange, D, N, hardCoreA, *rng
+            );
+        }
+        else {
+            particles = setupRandomUniformInitialState(
+                initRange, D, N, *rng
+            );
+        }
+        auto system = std::make_unique<System>(
+            std::move(hamiltonian),
+            std::move(wf_nn),
+            std::move(solver),
+            std::move(particles)
+        );
+
+        for (int step = 0; step < nEnergySteps; step++) {
+            hamiltonian->set_hardcore_strength(step* strengthRate);
+            
+            system->runEquilibrationSteps(stepParam, optEquil);
+            auto sampler = system->runMetropolisSteps_NN(stepParam, nSamples, wf_train);
+            auto dEdW = sampler->get_dEdW();
+
+            optimizer.zero_grad();
+            setNetworkGrads(wf_nn->net(), dEdW);
+            optimizer.step();
+
+            if (step % 500 == 0)
+                std::cout << "  step " << step
+                << "  E = " << sampler->getEnergy() << "\n";
+        }
+
+    }
+    else {
+        std::cout << "\n\nDEBUG: else detected\n\n";
+        auto res = runAlphaScan(N, D, scanSteps, scanEquil, omega, alphaMin,
+            alphaMax, nAlpha, stepParam, mode, baseSeed,
+            hFD, scanFile, useInteraction, useRBM, a, b, W, beta, gamma, hardCoreA);
         bestAlpha = res.first;
         bestEnergy = res.second;
 
         std::cout << "Saved scan data to: " << scanFile << "\n";
-        std::cout << "Best alpha from scan: " << bestAlpha << "  (E ~ " << bestEnergy << ")\n";        
+        std::cout << "Best alpha from scan: " << bestAlpha << "  (E ~ " << bestEnergy << ")\n";
     }
 
     // ---------------- Density calculation ----------------
@@ -324,8 +446,8 @@ int main(int argc, char** argv) {
         }
 
         std::cout << "\n=== Density run with alpha=" << bestAlpha
-                << " | " << (useNoJastrow ? "without" : "with") << " Jastrow"
-                << " | bins=" << densityBins << " ===\n";
+            << " | " << (useNoJastrow ? "without" : "with") << " Jastrow"
+            << " | bins=" << densityBins << " ===\n";
 
         RunResult dens = runVMC(
             N, D,
@@ -394,27 +516,27 @@ int main(int argc, char** argv) {
         useNumericalLaplacian = true;
     }
 
-    std::string prodFile = txtDir + "energy" + modelTag + "mode_"+ modeToString(mode);
+    std::string prodFile = txtDir + "energy" + modelTag + "mode_" + modeToString(mode);
     if (useRBM) prodFile += "_RBM_hidden_" + std::to_string(Nh);
     if (mode == Mode::Importance) prodFile += "_dt_" + doubleToTag(dt);
     prodFile += "_eval_" + evalToString((mode == Mode::Importance) ? EvalType::Analytic : productionEval);
     prodFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
-    std::string histFile = txtDir + "energy_history"  + modelTag + "_mode_" + modeToString(mode);
+    std::string histFile = txtDir + "energy_history" + modelTag + "_mode_" + modeToString(mode);
     if (mode == Mode::Importance) histFile += "_dt_" + doubleToTag(dt);
     histFile += "_eval_" + evalToString((mode == Mode::Importance) ? EvalType::Analytic : productionEval);
     histFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
-    std::string gradientFile = txtDir + "gradients" + modelTag + "mode_"+ modeToString(mode);
+    std::string gradientFile = txtDir + "gradients" + modelTag + "mode_" + modeToString(mode);
     if (useRBM) gradientFile += "_RBM_hidden" + std::to_string(Nh);
     if (mode == Mode::Importance) gradientFile += "_dt_" + doubleToTag(dt);
     gradientFile += "_eval_" + evalToString((mode == Mode::Importance) ? EvalType::Analytic : productionEval);
     gradientFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
     std::cout << "\n=== Production run with alpha=" << bestAlpha
-              << " | local energy eval: " << (useNumericalLaplacian ? "numerical" : "analytic")
-              << " | replicas=" << nReplicas
-              << " ===\n";
+        << " | local energy eval: " << (useNumericalLaplacian ? "numerical" : "analytic")
+        << " | replicas=" << nReplicas
+        << " ===\n";
 
     /*
     ParallelRunResult prodPar = runVMCReplicasParallel(
@@ -477,6 +599,7 @@ int main(int argc, char** argv) {
     }
 
     if (useRBM) {
+        std::cout << "\n\nDEBUG: last if detected\n\n";
         std::ofstream outGrad(gradientFile);
         outGrad << "Gradients\n";
         outGrad << "=========\n\n";
@@ -526,7 +649,7 @@ int main(int argc, char** argv) {
 
         outProd << "# N D mode stepParam eval replicas energy acceptance cpu_seconds\n";
         outProd << N << " " << D << " " << modeToString(mode) << " "
-            << stepParam << " " 
+            << stepParam << " "
             << (useNumericalLaplacian ? "nu" : "an") << " "
             << nReplicas << " "
             << std::setprecision(12)
@@ -534,7 +657,7 @@ int main(int argc, char** argv) {
             << result.acceptance << " "
             << result.cpu_seconds << "\n";
 
-    } 
+    }
     /*
     else {
         outProd << "# N D mode stepParam omega alpha eval replicas energy_mean gradient_mean acceptance_mean energy_std energy_stderr wall_seconds mean_replica_cpu_seconds\n";

@@ -5,6 +5,7 @@
 #include "system.h"
 #include "sampler.h"
 #include "RBMsampler.h"
+#include "NNsampler.h"
 #include "particle.h"
 #include "WaveFunctions/wavefunction.h"
 #include "Hamiltonians/hamiltonian.h"
@@ -38,6 +39,30 @@ unsigned int System::runEquilibrationSteps(
     }
 
     return acceptedSteps;
+}
+
+std::unique_ptr<NNsampler> System::runMetropolisSteps_NN(double stepParameter,
+    unsigned int numberOfMetropolisSteps, WaveFunction& wf_train) {
+    std::unique_ptr<NNsampler> sampler = std::make_unique<NNsampler>(
+        m_numberOfParticles,
+        m_numberOfDimensions,
+        m_waveFunction->getNumberOfParameters(),
+        stepParameter,
+        numberOfMetropolisSteps,
+        wf_train);
+
+    for (unsigned int i = 0; i < numberOfMetropolisSteps; i++) {
+        /* Call solver method to do a single Monte-Carlo step.
+         */
+        bool acceptedStep = m_solver->step(stepParameter, *m_waveFunction, m_particles);
+
+        // Sample energy
+        sampler->sample(acceptedStep, this);
+    }
+
+    sampler->computeAverages();
+
+    return sampler;
 }
 
 std::unique_ptr<class Sampler> System::runMetropolisSteps(
