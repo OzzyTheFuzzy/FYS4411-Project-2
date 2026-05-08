@@ -8,7 +8,7 @@ from initialize_data import InitializeData
 from model import SE_Model, reconstruct_SE_model
 from PINN_vs_analytical import *
 
-model_name  = "10N_3D_t100k_1kepoch" # name for saving model and logs
+model_name  = "10N_3D_t10k_mixed_lr3_epoch" # name for saving model and logs
 
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -23,14 +23,14 @@ def train_and_evaluate():
 
     
     #  Training parameters
-    training_points = 100000
-    epochs      = 1000
+    training_points = 10000
+    epochs      = 100
     batch_size  = 1000
     num_batches = training_points // batch_size
-    val_points  = 10000
+    val_points  = 7500
     val_width   = 1.0  # width of the Gaussian distribution for sampling validation collocation points
     val_seed    = 42 # random seed for sampling validation collocation points
-    lr          = 1e-5 # learning rate for optimizer. Will be tuned during training by scheduler for smoother convergence
+    lr          = 1e-3 # learning rate for optimizer. Will be tuned during training by scheduler for smoother convergence
     
     # Create instance of data initialization 
     print(f"Initializing data for N={N}, dim={dim}, a={a}")
@@ -43,7 +43,7 @@ def train_and_evaluate():
     model_config = {
         "dim": dim,
         "N": N,
-        "rho_hidden": [32, 32, 32], 
+        "rho_hidden": [32, 32, 32, 32], 
         "phi_hidden": [8], #
         "eta_hidden": [8],
         "phi_output": 4,
@@ -134,7 +134,7 @@ def check_energy(N, dim, beta=None, a=0.0):
         beta=beta,
         a=a
     )
-
+    print(f'positions obtained')
     PINN_energies, PINN_log_wf = evaluate_energy(f'{model_name}.pth', positions, a=a)
     
     E_mean = PINN_energies.mean()
@@ -149,7 +149,7 @@ def check_energy(N, dim, beta=None, a=0.0):
 
 train_and_evaluate() # uncomment for training 
 plot_loss_curves(model_name) # for plotting the loss during training
-positions, energies, PINN_energies, PINN_log_wf = check_energy(N=1, dim=3, beta=None, a=0.0) # for evaluating the energy of the trained model
-plot_energies(PINN_energies, energies) # for plotting the energy of the trained model
+#positions, energies, PINN_energies, PINN_log_wf = check_energy(N=10, dim=3, beta=None, a=0.0) # for evaluating the energy of the trained model
+#plot_energies(PINN_energies, energies) # for plotting the energy of the trained model
 
 
