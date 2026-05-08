@@ -99,10 +99,10 @@ int main(int argc, char** argv) {
     const unsigned int optSteps = 100000;
 
     // numerical Laplacian FD step (only used when productionEval == nu in bf mode)
-    const double hFD = 1e-3;
+    //const double hFD = 1e-3;
 
     // alpha selection mode
-    bool skipScan = true;
+    //bool skipScan = true;
     double userAlpha = 0.5;
     bool useOptimization = false;
     std::string optMethod = "";

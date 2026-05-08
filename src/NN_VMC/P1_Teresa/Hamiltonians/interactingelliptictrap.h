@@ -10,8 +10,7 @@ public:
 
     double computeLocalEnergy(
         class WaveFunction& waveFunction,
-        std::vector<std::unique_ptr<class Particle>>& particles
-    ) override;
+        std::vector<std::unique_ptr<class Particle>>& particles) override;
 
 private:
     double m_gamma = 1.0;

@@ -1,4 +1,4 @@
-#include<memory>
+#include <memory>
 #include <cassert>
 #include <iostream>
 
@@ -95,7 +95,7 @@ static double numericalLaplacian(
 double HarmonicOscillator::computeLocalEnergy(
             class WaveFunction& waveFunction,
             std::vector<std::unique_ptr<class Particle>>& particles
-        )
+)
 {
 
     // Natural units: hbar = m = 1

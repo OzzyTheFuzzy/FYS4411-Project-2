@@ -120,22 +120,20 @@ RunResult runVMC(
     std::unique_ptr<Hamiltonian> hamiltonian;
     std::unique_ptr<WaveFunction> waveFunction;
 
-    if (useInteraction) {
-        hamiltonian = std::make_unique<InteractingEllipticTrap>(gamma);
-
-        if (useNoJastrow) {
-            waveFunction = std::make_unique<AnisotropicGaussian>(alpha, beta);
+    if (useRBM) {
+        waveFuntion = std::make_unique<BoltzmannMachine>(a,b,W);
+        if (useInteraction) {
+            // NEED TO CHANGE THAT TO ANOTHER HAMILTONIAN
+            hamiltonian = std::make_unique<HarmonicOscillator>(omega, useNumericalLaplacian, hFD);
         } else {
-            waveFunction = std::make_unique<CorrelatedGaussian>(alpha, beta, hardCoreA);
+            hamiltonian = std::make_unique<HarmonicOscillator>(omega, useNumericalLaplacian, hFD);
         }
     } else {
-        hamiltonian = std::make_unique<HarmonicOscillator>(omega, useNumericalLaplacian, hFD);
-
-        if (useRBM) {
-            waveFunction = std::make_unique<BoltzmannMachine>(a,b,W);
-        }
-        else {
-            waveFunction = std::make_unique<SimpleGaussian>(alpha);
+        hamiltonian = std::make_unique<InteractingEllipticTrap>(gamma, useInteraction);
+        if (useInteraction) {
+            waveFunction = std::make_unique<CorrelatedGaussian>(alpha, beta, hardCoreA);
+        } else {
+            waveFunction = std::make_unique<AnisotropicGaussian>(alpha, beta);
         }
     }
 
