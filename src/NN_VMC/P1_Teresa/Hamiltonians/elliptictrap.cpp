@@ -4,24 +4,25 @@
 #include <memory>
 #include <vector>
 
-#include "interactingelliptictrap.h"
+#include "elliptictrap.h"
 #include "../particle.h"
 #include "../WaveFunctions/wavefunction.h"
 
-InteractingEllipticTrap::InteractingEllipticTrap(double gamma)
+EllipticTrap::EllipticTrap(double gamma)
 {
     assert(gamma > 0.0);
     m_gamma = gamma;
 }
 
-double InteractingEllipticTrap::computeLocalEnergy(
+double EllipticTrap::computeLocalEnergy(
     class WaveFunction& waveFunction,
     std::vector<std::unique_ptr<class Particle>>& particles
 )
 {
     const double psi = waveFunction.evaluate(particles);
 
-    // Forbidden hard-core configuration
+    // If the wave function is zero or numerically invalid, reject this configuration
+    // by assigning an infinite local energy.
     if (psi == 0.0) {
         return std::numeric_limits<double>::infinity();
     }

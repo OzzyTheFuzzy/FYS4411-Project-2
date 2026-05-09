@@ -4,9 +4,9 @@
 
 #include "hamiltonian.h"
 
-class InteractingEllipticTrap : public Hamiltonian {
+class EllipticTrap : public Hamiltonian {
 public:
-    InteractingEllipticTrap(double gamma);
+    EllipticTrap(double gamma);
 
     double computeLocalEnergy(
         class WaveFunction& waveFunction,

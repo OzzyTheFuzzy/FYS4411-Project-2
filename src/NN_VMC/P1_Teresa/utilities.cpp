@@ -15,8 +15,8 @@
 #include "WaveFunctions/simplegaussian.h"
 #include "WaveFunctions/correlatedgaussian.h"
 #include "WaveFunctions/anisotropicgaussian.h"
-#include "Hamiltonians/harmonicoscillator.h"
-#include "Hamiltonians/interactingelliptictrap.h"
+#include "Hamiltonians/elliptictrap.h"
+#include "Hamiltonians/rbminteractrap.h"
 #include "InitialStates/initialstate.h"
 #include "Solvers/metropolis.h"
 #include "Solvers/importancesampling.h"
@@ -59,8 +59,6 @@ RunResult runVMC(
     double stepParam,            // bf: stepLength,  is: dt
     Mode mode,
     int seed,
-    bool useNumericalLaplacian,  // affects local energy evaluation only
-    double hFD,                  // finite diff step used by HarmonicOscillator if numerical Laplacian is enabled
     bool printToTerminal,
     bool storeEnergyHistory,
     bool useInteraction,
@@ -82,59 +80,57 @@ RunResult runVMC(
     // so we use a fixed init range.
     const double initRange = 1.0;
 
-    if (useInteraction) {
+    if (useInteraction && !useRBM) {
         if (D != 3) {
             std::cerr << "Error: interacting hard-sphere implementation is currently only available for D=3.\n";
             std::exit(1);
         }
         if (mode == Mode::Importance) {
-            std::cerr << "Error: interacting case is not yet implemented for importance sampling.\n";
-            std::exit(1);
-        }
-        if (useNumericalLaplacian) {
-            std::cerr << "Error: interacting case should use the analytic local-energy formulas, not numerical Laplacian.\n";
+            std::cerr << "Error: interacting hard-sphere case is not yet implemented for importance sampling.\n";
             std::exit(1);
         }
     }
 
     auto rng = std::make_unique<Random>(seed);
 
+    // ---------------- Particles ----------------
     std::vector<std::unique_ptr<Particle>> particles;
-    if (useInteraction) {
-        particles = setupRandomUniformInitialStateNoOverlap(
-            initRange, D, N, hardCoreA, *rng
-        );
+
+    if (useInteraction && !useRBM) {
+        particles = setupRandomUniformInitialStateNoOverlap(initRange, D, N, hardCoreA, *rng);
     } else {
-        particles = setupRandomUniformInitialState(
-            initRange, D, N, *rng
-        );
+        particles = setupRandomUniformInitialState(initRange, D, N, *rng);
     }
 
-    std::unique_ptr<MonteCarlo> solver;
-    if (mode == Mode::Importance) {
-        solver = std::make_unique<ImportanceSampling>(std::move(rng), 0.5);
-    } else {
-        solver = std::make_unique<Metropolis>(std::move(rng));
-    }
-
+    // ---------------- Wave function and Hamiltonian ----------------
     std::unique_ptr<Hamiltonian> hamiltonian;
     std::unique_ptr<WaveFunction> waveFunction;
 
     if (useRBM) {
-        waveFuntion = std::make_unique<BoltzmannMachine>(a,b,W);
+        waveFunction = std::make_unique<BoltzmannMachine>(a, b, W);
         if (useInteraction) {
-            // NEED TO CHANGE THAT TO ANOTHER HAMILTONIAN
-            hamiltonian = std::make_unique<HarmonicOscillator>(omega, useNumericalLaplacian, hFD);
+            hamiltonian = std::make_unique<RBMInteractingTrap>(omega, gamma, 1.0);
         } else {
-            hamiltonian = std::make_unique<HarmonicOscillator>(omega, useNumericalLaplacian, hFD);
+            hamiltonian = std::make_unique<EllipticTrap>(gamma);
         }
-    } else {
-        hamiltonian = std::make_unique<InteractingEllipticTrap>(gamma, useInteraction);
+    } 
+    else {
         if (useInteraction) {
             waveFunction = std::make_unique<CorrelatedGaussian>(alpha, beta, hardCoreA);
         } else {
             waveFunction = std::make_unique<AnisotropicGaussian>(alpha, beta);
         }
+        hamiltonian = std::make_unique<EllipticTrap>(gamma);
+    }
+
+    // ---------------- Solver ----------------
+    // Move rng only after all particle initialization is finished.
+    std::unique_ptr<MonteCarlo> solver;
+
+    if (mode == Mode::Importance) {
+        solver = std::make_unique<ImportanceSampling>(std::move(rng), 0.5);
+    } else {
+        solver = std::make_unique<Metropolis>(std::move(rng));
     }
 
     auto system = std::make_unique<System>(
@@ -217,8 +213,6 @@ ParallelRunResult runVMCReplicasParallel(
     double stepParam,
     Mode mode,
     int baseSeed,
-    bool useNumericalLaplacian,
-    double hFD,
     int nReplicas,
     bool storeEnergyHistory,
     bool useInteraction,
@@ -254,8 +248,6 @@ ParallelRunResult runVMCReplicasParallel(
             stepParam,
             mode,
             seed,
-            useNumericalLaplacian,
-            hFD,
             false,   // avoid mixed terminal output from many threads
             storeEnergyHistory,
             useInteraction,
@@ -316,83 +308,6 @@ ParallelRunResult runVMCReplicasParallel(
     }
 
     return out;
-}
-
-std::pair<double,double> runAlphaScan(
-    unsigned int N,
-    unsigned int D,
-    unsigned int scanSteps,
-    unsigned int scanEquil,
-    double omega,
-    double alphaMin,
-    double alphaMax,
-    int nAlpha,
-    double stepParam,
-    Mode mode,
-    int baseSeed,
-    double hFD,
-    const std::string& scanFile,
-    bool useInteraction,
-    bool useRBM,
-    const std::vector<std::vector<double>>& a,
-    const std::vector<double>& b,
-    const std::vector<std::vector<std::vector<double>>>& W,
-    double beta,
-    double gamma,
-    double hardCoreA
-) {
-    std::ofstream outScan(scanFile);
-    if (!outScan) {
-        std::cerr << "Error: could not open " << scanFile << "\n";
-        std::exit(1);
-    }
-    outScan << "# alpha  energy  cpu_seconds  acceptance\n";
-    outScan << std::setprecision(10);
-
-    double bestAlpha = alphaMin;
-    double bestEnergy = std::numeric_limits<double>::infinity();
-
-    for (int i = 0; i < nAlpha; i++) {
-        const double alpha = alphaMin + i * (alphaMax - alphaMin) / (nAlpha - 1);
-
-        const int seed = baseSeed
-            + 1000 * static_cast<int>(N)
-            + 10 * static_cast<int>(D)
-            + i;
-
-        // Scan ALWAYS uses analytic local energy (fast & stable)
-        RunResult r = runVMC(
-            N, D,
-            scanSteps,
-            scanEquil,
-            omega,
-            alpha,
-            stepParam,
-            mode,
-            seed,
-            false, // analytic Laplacian
-            hFD,
-            false,
-            false,
-            useInteraction,
-            useRBM,
-            a,
-            b,
-            W,
-            beta,
-            gamma,
-            hardCoreA
-        );
-
-        outScan << alpha << " " << r.energy << " " << r.cpu_seconds << " " << r.acceptance << "\n";
-
-        if (r.energy < bestEnergy) {
-            bestEnergy = r.energy;
-            bestAlpha = alpha;
-        }
-    }
-    outScan.close();
-    return {bestAlpha, bestEnergy};
 }
 
 std::vector<std::vector<double>> matr_mult(std::vector<std::vector<double>>& a, std::vector<std::vector<double>>& b) {
