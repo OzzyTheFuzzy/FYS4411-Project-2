@@ -98,7 +98,7 @@ class SE_Model(nn.Module):
         a,
         omega_z=1.0,
         omega_ho=1.0,
-        activation_function=nn.Tanh(),
+        activation_function=nn.GELU(),
         alpha=0.5,
         beta=1.0,
         trainable_alpha=False

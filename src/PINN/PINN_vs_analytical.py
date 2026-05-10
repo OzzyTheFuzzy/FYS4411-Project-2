@@ -1,5 +1,4 @@
 import json
-
 import torch 
 import torch.nn as nn
 import matplotlib.pyplot as plt
@@ -18,11 +17,34 @@ model_dir = project_root / "models"
 
 #model_name = "2N_1D_GELU_32323232_12output.pth" # name of model with .pth
 
-
 def load_results(model_name):
     with open(f"logs/{model_name}.json", "r") as f:
         results = json.load(f)
     return results
+
+def load_pos_memmap(n_samples, N, d, beta=None, a=0.0):
+    """
+    Load memmap WITHOUT loading into RAM.
+    """
+
+    beta_str = "None" if beta is None else str(beta)
+    a_str = str(a)
+
+    filename = f"r_all_N{N}_d{d}_beta{beta_str}_a{a_str}.dat"
+    path = data_dir / filename
+
+    if not path.exists():
+        raise FileNotFoundError(f"Could not find file: {path}")
+
+    r_all = np.memmap(
+        path,
+        dtype="float64",
+        mode="r",
+        shape=(n_samples, N, d),
+    )
+
+    return r_all
+
 
 def plot_loss_curves(model_name):
     results = load_results(model_name)
@@ -43,41 +65,8 @@ def plot_loss_curves(model_name):
     plt.legend()
     plt.show()
 
-def find_npz_file(data_dir, N, d, beta=None, a=0.0):
-    """
-    Finds file with pattern:
-    r_all_E_N{N}_d{d}_beta{beta}_a{a}.npz
-    """
 
-    data_dir = Path(data_dir)
-
-    beta_str = "None" if beta is None else str(beta)
-    a_str = str(a)
-
-    filename = f"r_all_E_N{N}_d{d}_beta{beta_str}_a{a_str}.npz"
-    path = data_dir / filename
-
-    if not path.exists():
-        raise FileNotFoundError(f"Could not find file: {path}")
-
-    return path
-
-def load_positions_and_energy_from_params(N, d, beta=None, a=0.0, device="cpu"):
-    path = find_npz_file(data_dir, N=N, d=d, beta=beta, a=a)
-
-    data = np.load(path)
-
-    r_all = data["r_all"]
-    E_ana = data["E"]
-
-    positions = torch.tensor(r_all, dtype=torch.float32, device=device)
-    energies = torch.tensor(E_ana, dtype=torch.float32, device=device).reshape(-1, 1)
-
-    n_samples, N_loaded, dim_loaded = r_all.shape
-
-    return positions, energies.detach().cpu().numpy(), n_samples, N_loaded, dim_loaded
-
-def evaluate_energy(model_name, positions, a=0.0):
+def model_reconstructer(model_name, nparticles, dim, a=0.0, beta=None, omega_z=1.0, omega_ho=1.0):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     path = model_dir / model_name
@@ -85,36 +74,27 @@ def evaluate_energy(model_name, positions, a=0.0):
     state_dict = checkpoint["model_state_dict"]
     structure = reconstruct_SE_model(path)
    
-    positions = positions.to(device)
-    nparticles = positions.shape[1]
-    dim = positions.shape[2]
-    a = 0.0
+
     model = SE_Model(
         dim=dim,
         N=nparticles,
-        a=a,
         rho_hidden=structure["rho_hidden"],
         phi_hidden=structure["phi_hidden"],
         eta_hidden=structure["eta_hidden"],
         phi_output=structure["phi_output"],
         eta_output=structure["eta_output"], 
+        a=a,
+        omega_z=omega_z,
+        omega_ho=omega_ho,
         activation_function=nn.GELU(), # need to make sure it is correct activation function
         alpha=0.5,
-        beta=1.0
+        beta=beta,
     ).to(device)
 
     model.load_state_dict(state_dict) #apply trained weights to model
     model.eval()
-
-    trainer = Training(model) #initialize trainer to access energy_model method
-    positions = positions.to(device)
-    positions = positions.detach().clone().requires_grad_(True)
-    energy, E_K, V = trainer.energy_model(positions) #retrieve energy for the given positions
-
-    with torch.no_grad():
-        u = model(positions) #calculate the log(pos) for the wavefunction for the given positions
-
-    return energy.detach().cpu().numpy(), u.detach().cpu().numpy() #return energy and log(pos) as numpy arrays for plotting
+    
+    return model
 
 
 def load_positions_and_energy(filename, device="cpu", index=None):
@@ -148,29 +128,6 @@ def plot_energies(PINN_energies, energies):
     plt.ylabel("Energy")
     plt.legend()
     plt.show()
-
-
-def test(model_name="2N_1D_GELU_323232_8output"):
-
-    N = 2
-    d = 1
-    beta = None
-    a = 0.0
-    positions, energies, n_samples, N, dim = load_positions_and_energy_from_params(
-        N=N,
-        d=d,
-        beta=beta,
-        a=a
-    )
-
-    PINN_energies, PINN_log_wf = evaluate_energy(model_name, positions, a=a)
-    
-    E_mean = PINN_energies.mean()
-    E_std = PINN_energies.std()
-
-    print(f"N = {N}, d = {dim}, beta = {beta}, a = {a}")
-    print(f"PINN E_mean = {E_mean:.8f}")
-    print(f"PINN E_std  = {E_std:.8f}")
 
 
 def plot_psi_sqare(positions, PINN_log_wf_array):
@@ -232,3 +189,37 @@ def plot_psi_sqare(positions, PINN_log_wf_array):
         plt.show()
 
     return 0
+
+def load_positions_and_energy_from_params(N, d, beta=None, a=0.0, device="cpu"):
+    path = find_npz_file(data_dir, N=N, d=d, beta=beta, a=a)
+
+    data = np.load(path)
+
+    r_all = data["r_all"]
+    E_ana = data["E"]
+
+    positions = torch.tensor(r_all, dtype=torch.float32, device=device)
+    energies = torch.tensor(E_ana, dtype=torch.float32, device=device).reshape(-1, 1)
+
+    n_samples, N_loaded, dim_loaded = r_all.shape
+
+    return positions, energies.detach().cpu().numpy(), n_samples, N_loaded, dim_loaded
+
+def find_npz_file(data_dir, N, d, beta=None, a=0.0):
+    """
+    Finds file with pattern:
+    r_all_E_N{N}_d{d}_beta{beta}_a{a}.npz
+    """
+
+    data_dir = Path(data_dir)
+
+    beta_str = "None" if beta is None else str(beta)
+    a_str = str(a)
+
+    filename = f"r_all_E_N{N}_d{d}_beta{beta_str}_a{a_str}.npz"
+    path = data_dir / filename
+
+    if not path.exists():
+        raise FileNotFoundError(f"Could not find file: {path}")
+
+    return path

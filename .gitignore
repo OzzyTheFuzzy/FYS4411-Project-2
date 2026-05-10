@@ -4,3 +4,4 @@ __pycache__/
 
 src/PINN/positions_energy_data/
 *.npz
+*.dat

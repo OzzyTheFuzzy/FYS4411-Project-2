@@ -11,7 +11,7 @@ class Training(LossFunctions):
     """
     Training class for the PINN that will solve SE
     """
-    def __init__(self, SE_model, val_points=100, val_width=1.0, val_seed=17):
+    def __init__(self, SE_model, val_points=1000, val_width=1.0, val_seed=17):
         super().__init__(SE_model)
         self.model  = SE_model
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -65,7 +65,7 @@ class Training(LossFunctions):
 
         return pde_loss.item()
     
-    def training_cycle_SE(self, N_epochs, positions, optimizer, scheduler, num_batches, use_scheduler=False):
+    def training_cycle_SE(self, N_epochs, data_initializer, training_points, width, seed, optimizer, scheduler, num_batches, use_scheduler=False):
         """
         Full training of the model which solves the SE
         After each batch it updates the model parameters and can update the learning rate.
@@ -73,7 +73,10 @@ class Training(LossFunctions):
 
         Parameters:
             - N_epochs (int): Number of training epochs.
-            - positions (torch.Tensor): Training data points of shape (num_points, N, dim).
+            - data_initializer (InitializeData): Instance for initializing training data.
+            - training_points (int): Number of training points.
+            - width (float): Width of the Gaussian distribution for sampling training collocation points.
+            - seed (int): Random seed for sampling training collocation points.
             - optimizer (torch.optim.Optimizer): Optimizer instance.
             - scheduler (torch.optim.lr_scheduler): Learning rate scheduler.
             - num_batches (int): Number of batches per epoch.
@@ -90,7 +93,7 @@ class Training(LossFunctions):
 
         # Generate fixed validation data
         N_validation = self.val_points
-        data_initializer_val = InitializeData(self.model.N, self.model.dim, device=self.device)
+        data_initializer_val = InitializeData(self.model.N, self.model.dim, device=self.device, hard_core_radius=self.model.a, omega_z=data_initializer.omega_z)
         val_positions = data_initializer_val.initialize_pde(N_validation, width=self.val_width, seed=self.val_seed)
 
         # Lists to store training and validation results
@@ -100,14 +103,17 @@ class Training(LossFunctions):
         best_E_L_var = 100000
         best_model_state = copy.deepcopy(self.model.state_dict())
 
-        # Trim PDE dataset to fit exact batch division.
-        positions = self.trim_dataset(positions, num_batches)
-        
-        batch_size = max(1, len(positions) // num_batches) # Batch size for PDE training
-        batch_array = DataLoader(TensorDataset(positions), batch_size, shuffle=True, drop_last=True) #creates batches for training
-            
+
         for epoch in range(N_epochs):
 
+            positions = data_initializer.initialize_pde(training_points, width, seed= int(seed * epoch)) # Generate new collocation points for each epoch with different seed
+
+            # Trim PDE dataset to fit exact batch division.
+            positions = self.trim_dataset(positions, num_batches)
+            
+            batch_size = max(1, len(positions) // num_batches) # Batch size for PDE training
+            batch_array = DataLoader(TensorDataset(positions), batch_size, shuffle=True, drop_last=True) #creates batches for training
+                
             self.model.train()
 
             pde_sum = 0.0
@@ -131,7 +137,7 @@ class Training(LossFunctions):
 
                 pde_val_loss = self.PDE_loss(val_positions)
                 E_L, E_K, V = self.energy_model(val_positions)
-
+                print(E_L.mean(), E_K.mean(), V.mean())
                 E_L_var = E_L.var().item()
 
                 val_loss.append(pde_val_loss.item())
