@@ -8,7 +8,7 @@ from initialize_data import InitializeData
 from model import SE_Model, reconstruct_SE_model
 from PINN_vs_analytical import *
 
-model_name  = "10N_beta2.82843_lr3_20k_width0.75" # name for saving model and logs
+model_name  = "10N_beta2.82843_lr3_50k_width1" # name for saving model and logs
 samples=1000000
 samples=int(1000000-samples//10*2.0)# to check VMC energy (samples=amount of positions)
 
@@ -16,7 +16,7 @@ def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Configuration
-    width = 0.65      # Width of the Gaussian distribution for sampling collocation points
+    width = 1.0      # Width of the Gaussian distribution for sampling collocation points
     a     = 0.0  #0.0043  for interactions   Hard-core radius (set to 0 for no interactions)
     N     = 10        # Number of particles (dimensions)
     dim   = 3         # Dimensionality of the particles
@@ -25,13 +25,13 @@ def train_and_evaluate():
     
     
     #  Training parameters
-    training_points = 20000
+    training_points = 50000
     seed            = 17
     epochs      = 200
     batch_size  = 1000
     num_batches = training_points // batch_size
-    val_points  = 7500
-    val_width   = 0.75  # width of the Gaussian distribution for sampling validation collocation points
+    val_points  = 10000
+    val_width   = width # width of the Gaussian distribution for sampling validation collocation points
     val_seed    = 42 # random seed for sampling validation collocation points
     lr          = 1e-3 # learning rate for optimizer. Will be tuned during training by scheduler for smoother convergence
     
@@ -41,7 +41,6 @@ def train_and_evaluate():
     print("Data initialization complete.")
     # create data for training
     
-
     model_config = {
         "dim": dim,
         "N": N,
@@ -93,7 +92,11 @@ def train_and_evaluate():
     results = {
         "model_name": model_name,
         "model_config": json_config,
-
+        "training_points": int(training_points),
+        "width": float(width),
+        "val_seed": int(val_seed),
+        "val_points": int(val_points),
+        "seed": int(seed),
         "energy_parameter_final": float(trainer.energy.detach().cpu().item()),
         "energy_parameter_history": list(np.array(trainer.energy_model_array).tolist()),
 
@@ -109,13 +112,11 @@ def train_and_evaluate():
 
        
         "energy_mean_val_final": float(trainer.energy_val_mean[-1]),
+         "energy_var_val_final": float(trainer.energy_val_var[-1]),
         "energy_mean_val_history": list(np.array(trainer.energy_val_mean).tolist()),
-
-        "energy_var_val_final": float(trainer.energy_val_var[-1]),
+       
         "energy_var_val_history": list(np.array(trainer.energy_val_var).tolist()),
 
-
-        "training_points": int(training_points),
 
         "epochs": list(np.array(epoch_array).tolist()),
         "train_loss": list(np.array(loss).tolist()),
@@ -133,7 +134,7 @@ def train_and_evaluate():
 
 
 
-def energy_vmc_and_plot(model_name, N, d,samples, beta, a=0.0, omega_z=1.0, omega_ho=1.0, device="cpu"):
+def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, omega_ho=1.0, device="cpu", full=False):
     energies_for_plot = []
 
     if beta == 1.0:
@@ -173,6 +174,32 @@ def energy_vmc_and_plot(model_name, N, d,samples, beta, a=0.0, omega_z=1.0, omeg
     V_sum = 0.0
     trainer = Training(model)
 
+    if full == False:
+
+        positions_i = torch.tensor(positions[-10_000:],dtype=torch.float32,device=device,requires_grad=True,)
+
+        E_L, E_K, V = trainer.energy_model(positions_i)
+
+        E_i   = E_L.detach().cpu().numpy().reshape(-1)
+        E_K_i = E_K.detach().cpu().numpy().reshape(-1)
+        V_i   = V.detach().cpu().numpy().reshape(-1)
+
+        E_L_mean = E_L.mean().item()
+        E_K_mean = E_K.mean().item()
+        V_mean = V.mean().item()
+        E_L_var = E_L.var().item()
+
+        E_std = np.sqrt(max(E_L_var, 0.0))
+        print(f"Using last 10,000 positions for quick energy evaluation:")
+        print(f"N = {N}, d = {d}, beta = {beta}, a = {a}")
+        print(f"PINN E_mean = {E_L_mean:.8f} and E_ana = {E_ana:.8f}")
+        print(f"PINN E_std  = {E_std:.8f}")
+        print(f"PINN E_K_mean = {E_K_mean:.8f}")
+        print(f"PINN V_mean = {V_mean:.8f}")
+        plot_energies(E_i, E_ana)
+
+        return E_L_mean, E_std
+        
     for start in range(0, samples, batch_size):
         stop = min(start + batch_size, samples)
 
@@ -218,9 +245,9 @@ def energy_vmc_and_plot(model_name, N, d,samples, beta, a=0.0, omega_z=1.0, omeg
 
     return E_mean, E_std
 
-#train_and_evaluate() # uncomment for training 
+train_and_evaluate() # uncomment for training 
 plot_loss_curves(model_name) # for plotting the loss during training
 beta=2.82843
-E_mean, E_std= energy_vmc_and_plot(model_name, N=10, d=3, samples=samples, beta=beta, a=0.0, omega_z=beta, omega_ho=1.0) # for evaluating the energy of the trained model
+E_mean, E_std= energy_vmc_and_plot(model_name, N=10, d=3, samples=samples, beta=beta, a=0.0, omega_z=beta, omega_ho=1.0, full=False) # for evaluating the energy of the trained model
 
 

@@ -137,7 +137,7 @@ class Training(LossFunctions):
 
                 pde_val_loss = self.PDE_loss(val_positions)
                 E_L, E_K, V = self.energy_model(val_positions)
-                print(E_L.mean(), E_K.mean(), V.mean())
+                print(E_L.mean().item(), E_K.mean().item(), V.mean().item())
                 E_L_var = E_L.var().item()
 
                 val_loss.append(pde_val_loss.item())
