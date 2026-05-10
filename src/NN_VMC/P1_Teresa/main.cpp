@@ -1,6 +1,7 @@
 // make clean
 // ./compile_project
 
+// FROM PROJECT 1
 // Examples:
 //  ./vmc bf 100 3 --alpha 0.50
 //  ./vmc is 0.005 100 3 --alpha 0.50
@@ -16,6 +17,7 @@
 // Example running interacting case:
 //  ./vmc bf 10 3 --interact --a 0.0043 --gamma 2.82843 --beta 2.82843 --alpha 0.48 --replicas 4
 //
+// FROM PROJECT 2
 // Example to use RBM:
 //  ./vmc bf 2 2 --rbm
 //  ./vmc is 0.02 2 2 --rbm
@@ -364,7 +366,13 @@ int main(int argc, char** argv) {
 
     }
     else {
-        std::cout << "Using alpha = " << bestAlpha << "\n";
+        if (useRBM) {
+            std::cout << "Using a = " << a << "\n";
+            std::cout << "Using b = " << b << "\n";
+            std::cout << "Using W = " << W << "\n";
+        } else {
+            std::cout << "Using alpha = " << bestAlpha << "\n";
+        }
     }
 
     // ---------------- Density calculation ----------------
@@ -417,7 +425,6 @@ int main(int argc, char** argv) {
     if (useRBM) prodFile += "_RBM_hidden_" + std::to_string(Nh);
     if (mode == Mode::Importance) prodFile += "_dt_" + doubleToTag(dt);
     if (gamma != 1.0) prodFile += "_gamma_" + doubleToTag(gamma);
-    if (useInteraction) prodFile += "_inter";
     prodFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
     std::string histFile = txtDir + "energy_history" + modelTag + "_mode_" + modeToString(mode);
@@ -428,7 +435,6 @@ int main(int argc, char** argv) {
     if (useRBM) gradientFile += "_RBM_hidden" + std::to_string(Nh);
     if (mode == Mode::Importance) gradientFile += "_dt_" + doubleToTag(dt);
     if (gamma != 1.0) gradientFile += "_gamma_" + doubleToTag(gamma);
-    if (useInteraction) gradientFile += "_inter";
     gradientFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
     std::cout << "\n=== Production run with alpha=" << bestAlpha
