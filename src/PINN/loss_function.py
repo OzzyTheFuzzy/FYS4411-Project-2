@@ -27,7 +27,7 @@ class LossFunctions(nn.Module):
         if beta_val == 1.0:
             E_init = self.model.N * self.model.dim / 2
         else:
-            E_init = self.model.N * (1 + np.sqrt(beta_val) / 2) 
+            E_init = self.model.N * (1 + beta_val / 2) 
 
         self.energy = nn.Parameter(torch.tensor(E_init, device=self.device))
         self.mse    = nn.MSELoss()
@@ -49,10 +49,6 @@ class LossFunctions(nn.Module):
 
         E_L, E_K, V = self.energy_model(input_tensor) # E_L(R) =  -1/2 [∇² logpsi(R) + |∇ logpsi(R)|²] + V(R)
         residual = E_L - self.energy
-
-        if self.model.a > 0.0:
-            J = self.jastrow(input_tensor)
-            residual = residual + J
             
         return torch.mean(residual**2)
         
@@ -136,22 +132,7 @@ class LossFunctions(nn.Module):
 
         #calculate the local energy E_L for each position in the batch 
         E_K= -0.5 * (lap_logpsi + grad_sq) 
-        E_L = E_K +  V
+        E_L = E_K +  V # size (B, 1)
 
         return E_L, E_K, V
     
-    def jastrow_single(self, x):
-        a   = self.model.a
-        eps = 1e-12
-        N   = x.shape[0]
-        J   = x.new_zeros(())
-
-        if N < 2 or a == 0.0:
-            return J
-
-        for i in range(N):
-            for j in range(i + 1, N):
-                r_ij = torch.sqrt(((x[i] - x[j]) ** 2).sum() + eps)
-                f_ij = 1.0 - a / r_ij
-                J    = J + torch.log(torch.clamp(f_ij, min=eps))
-        return J

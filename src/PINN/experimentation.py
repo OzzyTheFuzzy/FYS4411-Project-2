@@ -8,38 +8,40 @@ from initialize_data import InitializeData
 from model import SE_Model, reconstruct_SE_model
 from PINN_vs_analytical import *
 
-model_name  = "10N_3D_t10k_mixed_lr3_epoch" # name for saving model and logs
+model_name  = "10N_beta2.82843_lr3_20k_width0.75" # name for saving model and logs
+samples=1000000
+samples=int(1000000-samples//10*2.0)# to check VMC energy (samples=amount of positions)
 
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Configuration
-    width = 1.0      # Width of the Gaussian distribution for sampling collocation points
+    width = 0.65      # Width of the Gaussian distribution for sampling collocation points
     a     = 0.0  #0.0043  for interactions   Hard-core radius (set to 0 for no interactions)
     N     = 10        # Number of particles (dimensions)
     dim   = 3         # Dimensionality of the particles
-    omega_z = 1.0      # Frequency of the harmonic trap in the z-direction
+    omega_z = 2.82843      # Frequency of the harmonic trap in the z-direction
     omega_ho = 1.0    # Frequency of the harmonic trap in the x and y directions
-
+    
     
     #  Training parameters
-    training_points = 10000
-    epochs      = 100
+    training_points = 20000
+    seed            = 17
+    epochs      = 200
     batch_size  = 1000
     num_batches = training_points // batch_size
     val_points  = 7500
-    val_width   = 1.0  # width of the Gaussian distribution for sampling validation collocation points
+    val_width   = 0.75  # width of the Gaussian distribution for sampling validation collocation points
     val_seed    = 42 # random seed for sampling validation collocation points
     lr          = 1e-3 # learning rate for optimizer. Will be tuned during training by scheduler for smoother convergence
     
     # Create instance of data initialization 
     print(f"Initializing data for N={N}, dim={dim}, a={a}")
-    data_initializer = InitializeData(N, dim, device=device, dtype=torch.float32, hard_core_radius=a)
+    data_initializer = InitializeData(N, dim, device=device, dtype=torch.float32, hard_core_radius=a, omega_z=omega_z)
     print("Data initialization complete.")
     # create data for training
     
-    positions = data_initializer.initialize_pde(training_points, width, seed=17)
-    print(" pde Data initialization complete.")
+
     model_config = {
         "dim": dim,
         "N": N,
@@ -50,8 +52,8 @@ def train_and_evaluate():
         "eta_output": 4,
         "activation_function": nn.GELU(),
         "alpha": 0.5,
-        "beta": 1.0,
-        "trainable_alpha": True,
+        "beta": 2.82843,
+        "trainable_alpha": False,
         "a": a,
         "omega_z": omega_z,
         "omega_ho": omega_ho
@@ -59,16 +61,21 @@ def train_and_evaluate():
     # Model initialization, with optimizer and scheduler
     model = SE_Model(**model_config)
     print("Model initialization complete.")
+
     # Create an instance of the training class
     trainer = Training(model, val_points, val_width, val_seed)
     print("Training class initialization complete.")
+    
+    # Set up optimizer and learning rate scheduler
     optimizer = torch.optim.Adam(trainer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
     # train the model and get training results
     loss, epoch_array, val_loss, epochs_val, best_model_state = trainer.training_cycle_SE(
-            
             N_epochs=epochs,
-            positions=positions,
+            data_initializer=data_initializer,
+            training_points=training_points,
+            width=width,
+            seed=seed,
             optimizer=optimizer,
             scheduler=scheduler,
             num_batches=num_batches,
@@ -126,30 +133,94 @@ def train_and_evaluate():
 
 
 
-def check_energy(N, dim, beta=None, a=0.0):
+def energy_vmc_and_plot(model_name, N, d,samples, beta, a=0.0, omega_z=1.0, omega_ho=1.0, device="cpu"):
+    energies_for_plot = []
 
-    positions, energies, n_samples, N_loaded, dim_loaded= load_positions_and_energy_from_params(
-        N=N,
-        d=dim,
-        beta=beta,
-        a=a
-    )
-    print(f'positions obtained')
-    PINN_energies, PINN_log_wf = evaluate_energy(f'{model_name}.pth', positions, a=a)
-    
-    E_mean = PINN_energies.mean()
-    E_std = PINN_energies.std()
+    if beta == 1.0:
+        E_ana= N * d / 2
+    else:
+        E_ana = N * (1 + beta / 2)
 
-    print(f"N = {N}, d = {dim_loaded}, beta = {beta}, a = {a}")
-    print(f"PINN E_mean = {E_mean:.8f}")
+    max_plot_points = 10000
+    batch_size = 10000
+    model_name=f'{model_name}.pth'
+
+    model = model_reconstructer(model_name, N, d, a=a, beta=beta, omega_z=omega_z, omega_ho=omega_ho)
+
+    if beta ==1.0:
+        beta=None
+        positions= load_pos_memmap(
+            n_samples=samples,
+            N=N,
+            d=d,
+            beta=beta,
+            a=a,
+        )
+
+    else:
+        positions= load_pos_memmap(
+            n_samples=samples,
+            N=N,
+            d=d,
+            beta=beta,
+            a=a,
+        )
+
+    E_sum = 0.0
+    E2_sum = 0.0
+    count = 0
+    E_K_sum = 0.0
+    V_sum = 0.0
+    trainer = Training(model)
+
+    for start in range(0, samples, batch_size):
+        stop = min(start + batch_size, samples)
+
+        print(f"Loading positions: {start} / {samples}", end="\r")
+
+        positions_i = torch.tensor(positions[start:stop],dtype=torch.float32,
+            device=device,
+            requires_grad=True,
+        )
+        
+        E_L, E_K, V= trainer.energy_model(positions_i)
+
+        E_i = E_L.detach().cpu().numpy().reshape(-1)
+        E_K_i = E_K.detach().cpu().numpy().reshape(-1)
+        V_i = V.detach().cpu().numpy().reshape(-1)
+
+        # save subset of VMC energies for plotting
+        remaining = max_plot_points - len(energies_for_plot)
+        if remaining > 0:
+            energies_for_plot.extend(E_i[:remaining])
+
+        E_sum += E_i.sum()
+        E2_sum += np.sum(E_i**2)
+        count += E_i.size
+        E_K_sum += E_K_i.sum()
+        V_sum += V_i.sum()
+        # delete so we dont run out of memory
+        del positions_i, E_L, E_K, V
+
+    E_mean = E_sum / count
+    E_var = E2_sum / count - E_mean**2
+    E_K_mean = E_K_sum / count
+    V_mean = V_sum / count
+    E_std = np.sqrt(E_var)
+
+    print("\npositions obtained")
+    print(f"N = {N}, d = {d}, beta = {beta}, a = {a}")
+    print(f"PINN E_mean = {E_mean:.8f} and E_ana = {E_ana:.8f}")
     print(f"PINN E_std  = {E_std:.8f}")
+    print(f"PINN E_K_mean = {E_K_mean:.8f}")
+    print(f"PINN V_mean = {V_mean:.8f}")
+    plot_energies(energies_for_plot, E_ana)
 
-    return positions, energies, PINN_energies, PINN_log_wf
+    return E_mean, E_std
 
-
-train_and_evaluate() # uncomment for training 
+#train_and_evaluate() # uncomment for training 
 plot_loss_curves(model_name) # for plotting the loss during training
-#positions, energies, PINN_energies, PINN_log_wf = check_energy(N=10, dim=3, beta=None, a=0.0) # for evaluating the energy of the trained model
-#plot_energies(PINN_energies, energies) # for plotting the energy of the trained model
+beta=2.82843
+E_mean, E_std= energy_vmc_and_plot(model_name, N=10, d=3, samples=samples, beta=beta, a=0.0, omega_z=beta, omega_ho=1.0) # for evaluating the energy of the trained model
 
 

@@ -1,6 +1,6 @@
 #initialize_data.py
 import torch
-
+import numpy as np
 class InitializeData:
 
     """
@@ -11,16 +11,21 @@ class InitializeData:
     - device (torch.device): Device to use for computation
     - dtype (torch.dtype): Data type for tensors
     - hard_core_radius (float): Radius of the hard core interaction
+    - omega_z (float): Frequency of the harmonic trap in the z-direction
 
     """
 
-    def __init__(self, N, dim, device=None, dtype=torch.float32, hard_core_radius=0.0):
+    def __init__(self, N, dim, device=None, dtype=torch.float32, hard_core_radius=0.0, omega_z=1.0):
         self.N = N
         self.dim = dim
         self.a = hard_core_radius
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.dtype = dtype
-        
+        self.omega_z = omega_z if omega_z is not None else 1.0
+        self.sigma_x = 1 / np.sqrt(2) 
+        self.sigma_y = 1/ np.sqrt(2)
+        self.sigma_z = 1 / np.sqrt(2 * omega_z)
+
     def initialize_pde(self, batch_size, width, seed):
 
         """ Generates collocation points for training the PDE loss.
@@ -49,48 +54,83 @@ class InitializeData:
         # seed for reproducibility
         g = torch.Generator(device=self.device).manual_seed(seed)
 
-        # No hard core: fast path
-        if self.a == 0.0 or self.N <= 1:
-            positions = width * torch.randn(
-                batch_size,
+        sigmas = torch.ones(self.dim, device=self.device, dtype=self.dtype)
+
+        if self.dim >= 1:
+            sigmas[0] = self.sigma_x
+        if self.dim >= 2:
+            sigmas[1] = self.sigma_y
+        if self.dim >= 3:
+            sigmas[2] = self.sigma_z
+
+        sigmas = width * sigmas.view(1, 1, self.dim)
+        total_needed = batch_size
+        n1 = total_needed//2
+        n2 = total_needed//2
+
+        # No hard core 
+        if self.a == 0.0:
+
+            candidates_1 = torch.randn(
+                n1//2,
                 self.N,
                 self.dim,
                 generator=g,
                 device=self.device,
-                dtype=self.dtype
+                dtype=self.dtype,
+            ) * sigmas
+
+            candidates_2 = 1.5 * torch.randn(
+                n2//2,
+                self.N,
+                self.dim,
+                generator=g,
+                device=self.device,
+                dtype=self.dtype,
+            ) * sigmas
+
+            # concatenate and shuffle candidates
+            candidates = torch.cat([candidates_1, candidates_2], dim=0)
+            # scramble the particle positions to avoid any ordering bias
+            perm = torch.randperm(
+                candidates.shape[0],
+                generator=g,
+                device=self.device,
             )
-            return positions
+
+            return candidates[perm] 
 
         # Hard-core case: rejection sampling 
         accepted = []
-        total_needed = batch_size
         tries = 0
 
         while total_needed > 0 and tries < max_tries:
             tries += 1
 
-            candidates_1 = width * torch.randn(
-                total_needed,
+            candidates_1 = torch.randn(
+                n1//2,
                 self.N,
                 self.dim,
                 generator=g,
                 device=self.device,
-                dtype=self.dtype
-            )
-            candidates_2 = width * 1.5 * torch.randn(
-                total_needed,
+                dtype=self.dtype,
+            ) * sigmas
+
+            candidates_2 = 1.5 * torch.randn(
+                n2//2,
                 self.N,
                 self.dim,
                 generator=g,
                 device=self.device,
-                dtype=self.dtype
-            )
+                dtype=self.dtype,
+            ) * sigmas
+
             candidates = torch.cat([candidates_1, candidates_2], dim=0)
 
             perm = torch.randperm(
                 candidates.shape[0],
                 generator=g,
-                device=self.device
+                device=self.device,
             )
 
             candidates = candidates[perm]
@@ -107,8 +147,8 @@ class InitializeData:
             )
 
         positions = torch.cat(accepted, dim=0)[:batch_size]
-        return positions    
-        
+        return positions
+            
     def valid_hard_core(self, candidates):      
         """
         Safeguard for the hard core condition
