@@ -1,6 +1,28 @@
 #initialize_data.py
 import torch
 import numpy as np
+
+def distance_and_distance_vec(r,eps=0.0):
+    """
+    Calculate pairwise displacement vectors and distances.
+
+    Parameters:
+        r: shape (batch_size, N, dim)
+
+    Returns:
+        r_ij_abs: shape (batch_size, N, N)
+        r_ij:     shape (batch_size, N, N, dim)
+    """
+    # Pairwise displacement vectors
+    r_ij = r[:, :, None, :] - r[:, None, :, :]   # (B, N, N, dim)
+
+    # Pairwise distances
+    r_ij_abs = torch.linalg.norm(r_ij, dim=-1)   # (B, N, N)
+
+    return r_ij_abs, r_ij
+
+
+
 class InitializeData:
 
     """
@@ -72,7 +94,7 @@ class InitializeData:
         if self.a == 0.0:
 
             candidates_1 = torch.randn(
-                n1//2,
+                n1,
                 self.N,
                 self.dim,
                 generator=g,
@@ -81,7 +103,7 @@ class InitializeData:
             ) * sigmas
 
             candidates_2 = 1.5 * torch.randn(
-                n2//2,
+                n2,
                 self.N,
                 self.dim,
                 generator=g,
@@ -103,12 +125,15 @@ class InitializeData:
         # Hard-core case: rejection sampling 
         accepted = []
         tries = 0
-
+        n1 = total_needed // 3
+        n2 = total_needed // 3
+        n3 = total_needed - n1 - n2  # takes the remainder to ensure n1+n2+n3 = batch_size
+        
         while total_needed > 0 and tries < max_tries:
             tries += 1
 
             candidates_1 = torch.randn(
-                n1//2,
+                n1,
                 self.N,
                 self.dim,
                 generator=g,
@@ -117,7 +142,7 @@ class InitializeData:
             ) * sigmas
 
             candidates_2 = 1.5 * torch.randn(
-                n2//2,
+                n2,
                 self.N,
                 self.dim,
                 generator=g,
@@ -125,8 +150,17 @@ class InitializeData:
                 dtype=self.dtype,
             ) * sigmas
 
-            candidates = torch.cat([candidates_1, candidates_2], dim=0)
+            candidates_3 = 0.5 * torch.randn(
+                n3,
+                self.N,
+                self.dim,
+                generator=g,
+                device=self.device,
+                dtype=self.dtype,
+            ) * sigmas
 
+            candidates = torch.cat([candidates_1, candidates_2, candidates_3], dim=0)
+            # scramble the particle positions to avoid any ordering bias
             perm = torch.randperm(
                 candidates.shape[0],
                 generator=g,
@@ -147,6 +181,8 @@ class InitializeData:
             )
 
         positions = torch.cat(accepted, dim=0)[:batch_size]
+        # return positions with only valid configurations, shape (batch_size, N, dim)
+
         return positions
             
     def valid_hard_core(self, candidates):      
@@ -159,14 +195,14 @@ class InitializeData:
         Returns:
             torch.BoolTensor: Mask of valid configurations
         """
-        r_ij_abs, r_ij = self.distance_and_distance_vec(candidates)  # (B, N, N), (B, N, N, dim)
+        r_ij_abs, r_ij = self.distance_and_distance_vecs(candidates)  # (B, N, N), (B, N, N, dim)
 
         iu = torch.triu_indices(self.N, self.N, offset=1, device=candidates.device)
         rij = r_ij_abs[:, iu[0], iu[1]]  # (B, num_pairs)
 
         return torch.all(rij > self.a, dim=1)
 
-    def distance_and_distance_vec(self, r):
+    def distance_and_distance_vecs(self, r):
         """
         Calculate pairwise displacement vectors and distances.
 
@@ -178,10 +214,7 @@ class InitializeData:
             r_ij:     shape (batch_size, N, N, dim)
         """
         # Pairwise displacement vectors
-        r_ij = r[:, :, None, :] - r[:, None, :, :]   # (B, N, N, dim)
-
-        # Pairwise distances
-        r_ij_abs = torch.linalg.norm(r_ij, dim=-1)   # (B, N, N)
+        r_ij_abs, r_ij = distance_and_distance_vec(r)   # (B, N, N), (B, N, N, dim)
 
         return r_ij_abs, r_ij
 

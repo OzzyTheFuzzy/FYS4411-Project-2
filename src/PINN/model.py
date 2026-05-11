@@ -140,6 +140,22 @@ class SE_Model(nn.Module):
 
         self.register_buffer("beta", torch.tensor(beta, dtype=torch.float32))
 
+    def jastrow_log(self, pair_dist):
+        """
+        Computes the log of the Jastrow factor for a batch of pairwise distances.
+        Uses the cusp-condition form: sum_{i<j} ln(1 - a / r_ij)
+        
+        Parameters:
+            - pair_dist (torch.Tensor): shape (B, num_pairs), pairwise distances
+        Returns:
+            - torch.Tensor: shape (B, 1), log Jastrow contribution
+        """
+        # Clamp to avoid log of negative or zero (r_ij must be > a)
+        ratio = self.a / pair_dist.clamp(min=self.a + 1e-8)
+        log_j = torch.log1p(-ratio).sum(dim=1, keepdim=True)  # shape (B, 1)
+        return log_j
+
+
     def forward(self, positions):
 
         """
@@ -197,8 +213,14 @@ class SE_Model(nn.Module):
         combined = torch.cat([phi_sum, eta_sum], dim=1)  # shape (B, phi_output + eta_output)
         correction = self.rho(combined)                  # shape (B, 1)
 
+        # Jastrow factor (only if a > 0 and we have pairs)
+        if self.a > 0.0 and self.N >= 2:
+            jastrow = self.jastrow_log(pair_dist)   # shape (B, 1)
+        else:
+            jastrow = 0.0
+
         # Final log-wavefunction
-        u_theta = gauss + correction
+        u_theta = gauss + correction + jastrow
 
         return u_theta 
     
@@ -223,7 +245,6 @@ def test_create_model():
 model = test_create_model() # for testing model creation and weight initialization
 
 """
-
 
 
 def reconstruct_SE_model(path):

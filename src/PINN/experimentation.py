@@ -1,40 +1,40 @@
 import json
 import torch 
 import torch.nn as nn
-import matplotlib.pyplot as plt
 import numpy as np
 from training import Training
 from initialize_data import InitializeData
-from model import SE_Model, reconstruct_SE_model
+from model import SE_Model
 from PINN_vs_analytical import *
 
-model_name  = "10N_beta2.82843_lr3_50k_width1" # name for saving model and logs
-samples=1000000
-samples=int(1000000-samples//10*2.0)# to check VMC energy (samples=amount of positions)
+# Configuration
+width = 0.70       # Width of the Gaussian distribution for sampling collocation points
+a     = 0.0043      # 0.0043  for interactions   Hard-core radius (set to 0 for no interactions)
+N     = 2           # Number of particles (dimensions)
+dim   = 3           # Dimensionality of the particles
+omega_ho = 1.0        # Frequency of the harmonic trap in the x and y directions
+beta     =  2.82843   # 
+omega_z  = beta       # Frequency of the harmonic trap in the z-direction. Set equal to beta for antisotropic case, and to 1 for isotropic case
+
+#  Training parameters
+training_points = 50000
+seed            = 17
+epochs      = 150
+batch_size  = 2000
+num_batches = training_points // batch_size
+val_points  = 10000
+val_width   = width # width of the Gaussian distribution for sampling validation collocation points
+val_seed    = 42 # random seed for sampling validation collocation points
+lr          = 1e-3 # learning rate for optimizer. Will be tuned during training by scheduler for smoother convergence
+lr_E        = 1e-5 # learning rate for energy parameter, set lower than lr for smoother convergence towards true GS energy
+lr_alpha    = 1e-6 # learning rate for alpha parameter, set lower than
+trainable_alpha = False # whether to train the energy parameter alpha or keep it fixed during training
+
+model_name  = f"{N}N_beta{beta}_lr{lr}_a{a}_tp{training_points:.2e}" # name for saving model and logs
 
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Configuration
-    width = 1.0      # Width of the Gaussian distribution for sampling collocation points
-    a     = 0.0  #0.0043  for interactions   Hard-core radius (set to 0 for no interactions)
-    N     = 10        # Number of particles (dimensions)
-    dim   = 3         # Dimensionality of the particles
-    omega_z = 2.82843      # Frequency of the harmonic trap in the z-direction
-    omega_ho = 1.0    # Frequency of the harmonic trap in the x and y directions
-    
-    
-    #  Training parameters
-    training_points = 50000
-    seed            = 17
-    epochs      = 200
-    batch_size  = 1000
-    num_batches = training_points // batch_size
-    val_points  = 10000
-    val_width   = width # width of the Gaussian distribution for sampling validation collocation points
-    val_seed    = 42 # random seed for sampling validation collocation points
-    lr          = 1e-3 # learning rate for optimizer. Will be tuned during training by scheduler for smoother convergence
-    
     # Create instance of data initialization 
     print(f"Initializing data for N={N}, dim={dim}, a={a}")
     data_initializer = InitializeData(N, dim, device=device, dtype=torch.float32, hard_core_radius=a, omega_z=omega_z)
@@ -51,8 +51,8 @@ def train_and_evaluate():
         "eta_output": 4,
         "activation_function": nn.GELU(),
         "alpha": 0.5,
-        "beta": 2.82843,
-        "trainable_alpha": False,
+        "beta": beta,
+        "trainable_alpha": trainable_alpha,
         "a": a,
         "omega_z": omega_z,
         "omega_ho": omega_ho
@@ -64,9 +64,19 @@ def train_and_evaluate():
     # Create an instance of the training class
     trainer = Training(model, val_points, val_width, val_seed)
     print("Training class initialization complete.")
-    
+    # slowing down training for alpha and energy parameter for smoother convergence towards true GS
+    optimizer = torch.optim.Adam([
+    {
+        "params": [
+            p for name, p in trainer.named_parameters()
+            if name not in ["energy", "model.alpha"]
+        ],
+        "lr": lr,
+    },
+    {"params": [trainer.energy], "lr": lr_E},
+    {"params": [trainer.model.alpha], "lr": lr_alpha},
+])
     # Set up optimizer and learning rate scheduler
-    optimizer = torch.optim.Adam(trainer.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
     # train the model and get training results
     loss, epoch_array, val_loss, epochs_val, best_model_state = trainer.training_cycle_SE(
@@ -112,11 +122,10 @@ def train_and_evaluate():
 
        
         "energy_mean_val_final": float(trainer.energy_val_mean[-1]),
-         "energy_var_val_final": float(trainer.energy_val_var[-1]),
+        "energy_var_val_final": float(trainer.energy_val_var[-1]),
         "energy_mean_val_history": list(np.array(trainer.energy_val_mean).tolist()),
-       
+        "energy_std_val_history": list(np.array(trainer.energy_val_std_array).tolist()),
         "energy_var_val_history": list(np.array(trainer.energy_val_var).tolist()),
-
 
         "epochs": list(np.array(epoch_array).tolist()),
         "train_loss": list(np.array(loss).tolist()),
@@ -132,122 +141,11 @@ def train_and_evaluate():
     print(f"Saved model to models/{model_name}.pth")
     print(f"Saved logs to logs/{model_name}.json")
 
-
-
-def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, omega_ho=1.0, device="cpu", full=False):
-    energies_for_plot = []
-
-    if beta == 1.0:
-        E_ana= N * d / 2
-    else:
-        E_ana = N * (1 + beta / 2)
-
-    max_plot_points = 10000
-    batch_size = 10000
-    model_name=f'{model_name}.pth'
-
-    model = model_reconstructer(model_name, N, d, a=a, beta=beta, omega_z=omega_z, omega_ho=omega_ho)
-
-    if beta ==1.0:
-        beta=None
-        positions= load_pos_memmap(
-            n_samples=samples,
-            N=N,
-            d=d,
-            beta=beta,
-            a=a,
-        )
-
-    else:
-        positions= load_pos_memmap(
-            n_samples=samples,
-            N=N,
-            d=d,
-            beta=beta,
-            a=a,
-        )
-
-    E_sum = 0.0
-    E2_sum = 0.0
-    count = 0
-    E_K_sum = 0.0
-    V_sum = 0.0
-    trainer = Training(model)
-
-    if full == False:
-
-        positions_i = torch.tensor(positions[-10_000:],dtype=torch.float32,device=device,requires_grad=True,)
-
-        E_L, E_K, V = trainer.energy_model(positions_i)
-
-        E_i   = E_L.detach().cpu().numpy().reshape(-1)
-        E_K_i = E_K.detach().cpu().numpy().reshape(-1)
-        V_i   = V.detach().cpu().numpy().reshape(-1)
-
-        E_L_mean = E_L.mean().item()
-        E_K_mean = E_K.mean().item()
-        V_mean = V.mean().item()
-        E_L_var = E_L.var().item()
-
-        E_std = np.sqrt(max(E_L_var, 0.0))
-        print(f"Using last 10,000 positions for quick energy evaluation:")
-        print(f"N = {N}, d = {d}, beta = {beta}, a = {a}")
-        print(f"PINN E_mean = {E_L_mean:.8f} and E_ana = {E_ana:.8f}")
-        print(f"PINN E_std  = {E_std:.8f}")
-        print(f"PINN E_K_mean = {E_K_mean:.8f}")
-        print(f"PINN V_mean = {V_mean:.8f}")
-        plot_energies(E_i, E_ana)
-
-        return E_L_mean, E_std
-        
-    for start in range(0, samples, batch_size):
-        stop = min(start + batch_size, samples)
-
-        print(f"Loading positions: {start} / {samples}", end="\r")
-
-        positions_i = torch.tensor(positions[start:stop],dtype=torch.float32,
-            device=device,
-            requires_grad=True,
-        )
-        
-        E_L, E_K, V= trainer.energy_model(positions_i)
-
-        E_i = E_L.detach().cpu().numpy().reshape(-1)
-        E_K_i = E_K.detach().cpu().numpy().reshape(-1)
-        V_i = V.detach().cpu().numpy().reshape(-1)
-
-        # save subset of VMC energies for plotting
-        remaining = max_plot_points - len(energies_for_plot)
-        if remaining > 0:
-            energies_for_plot.extend(E_i[:remaining])
-
-        E_sum += E_i.sum()
-        E2_sum += np.sum(E_i**2)
-        count += E_i.size
-        E_K_sum += E_K_i.sum()
-        V_sum += V_i.sum()
-        # delete so we dont run out of memory
-        del positions_i, E_L, E_K, V
-
-    E_mean = E_sum / count
-    E_var = E2_sum / count - E_mean**2
-    E_K_mean = E_K_sum / count
-    V_mean = V_sum / count
-    E_std = np.sqrt(E_var)
-
-    print("\npositions obtained")
-    print(f"N = {N}, d = {d}, beta = {beta}, a = {a}")
-    print(f"PINN E_mean = {E_mean:.8f} and E_ana = {E_ana:.8f}")
-    print(f"PINN E_std  = {E_std:.8f}")
-    print(f"PINN E_K_mean = {E_K_mean:.8f}")
-    print(f"PINN V_mean = {V_mean:.8f}")
-    plot_energies(energies_for_plot, E_ana)
-
-    return E_mean, E_std
-
 train_and_evaluate() # uncomment for training 
 plot_loss_curves(model_name) # for plotting the loss during training
-beta=2.82843
-E_mean, E_std= energy_vmc_and_plot(model_name, N=10, d=3, samples=samples, beta=beta, a=0.0, omega_z=beta, omega_ho=1.0, full=False) # for evaluating the energy of the trained model
 
+# vmc samples from .dat file
+samples=1000000
+samples=int(1000000-samples//10*2.0)# to check VMC energy (samples=amount of positions)
 
+E_mean, E_std= energy_vmc_and_plot(model_name, N=N, d=dim, samples=samples, beta=beta, a=a, omega_z=omega_z, omega_ho=omega_ho, full=False) # for evaluating the energy of the trained model

@@ -6,7 +6,7 @@ import numpy as np
 
 from model import Model, SE_Model
 
-from initialize_data import InitializeData
+from initialize_data import distance_and_distance_vec
 
 
 class LossFunctions(nn.Module):
@@ -28,7 +28,10 @@ class LossFunctions(nn.Module):
             E_init = self.model.N * self.model.dim / 2
         else:
             E_init = self.model.N * (1 + beta_val / 2) 
-
+        
+        #if self.model.a > 0.0:
+        #    self.register_buffer("energy", torch.tensor(E_init, device=self.device))
+        
         self.energy = nn.Parameter(torch.tensor(E_init, device=self.device))
         self.mse    = nn.MSELoss()
 
@@ -47,7 +50,7 @@ class LossFunctions(nn.Module):
 
         input_tensor = positions.clone().requires_grad_(True)
 
-        E_L, E_K, V = self.energy_model(input_tensor) # E_L(R) =  -1/2 [∇² logpsi(R) + |∇ logpsi(R)|²] + V(R)
+        E_L = self.energy_model(input_tensor, total=True) # E_L(R) =  -1/2 [∇² logpsi(R) + |∇ logpsi(R)|²] + V(R)
         residual = E_L - self.energy
             
         return torch.mean(residual**2)
@@ -90,10 +93,10 @@ class LossFunctions(nn.Module):
         positions: (B, N, dim)
         returns V: (B, 1)
         """
-        
-
+        #symmetric potential
         if self.model.dim <= 2 or float(self.model.beta) == 1.0:
             V = 0.5 * self.model.omega_ho**2 * torch.sum(positions**2, dim=(1, 2))  #dim=(1, 2) sums over N and dim
+        #cylindrical potential
         else:
             xy_sq = torch.sum(positions[:, :, :-1]**2, dim=(1, 2))
             z_sq  = torch.sum(positions[:, :, -1]**2, dim=1)
@@ -102,22 +105,25 @@ class LossFunctions(nn.Module):
                 self.model.omega_ho**2 * xy_sq +
                 self.model.omega_z**2 * z_sq
             )
-        
-        # If interactions are included, add hard-core potential
-        if self.model.a > 0.0 and self.model.N >= 2:
-            eps = 1e-12
-            r_ij = positions[:, :, None, :] - positions[:, None, :, :]          # (B, N, N, dim)
-            r_ij_abs = torch.sqrt(torch.sum(r_ij**2, dim=-1) + eps)             # (B, N, N)
-            iu = torch.triu_indices(self.model.N, self.model.N, offset=1, device=positions.device)
-            pair_dist = r_ij_abs[:, iu[0], iu[1]]                               # (B, num_pairs)
 
-            # Infinite wall: add large penalty where r_ij <= a
-            inside_core = (pair_dist <= self.model.a).any(dim=1).float()        # (B,)
-            V = V + inside_core * 1e6
-            
         return V.unsqueeze(1)
+
+    def coulomb(self, positions):
+        """
+        positions: (B, N, dim)
+        returns V_coulomb: (B, 1)
+        """
+        r_ij_abs, r_ij= distance_and_distance_vec(positions)   # (B, N, N), (B, N, N, dim)
+        iu = torch.triu_indices(self.model.N, self.model.N, offset=1, device=positions.device)
+
+        pair_dist = r_ij_abs[:, iu[0], iu[1]]  
+  
+        eps=1e-8
+        V_coulomb = torch.sum(1.0 / (pair_dist + eps), dim=1, keepdim=True)  # shape (B, 1)
+   
+        return V_coulomb
     
-    def energy_model(self, positions):
+    def energy_model(self, positions, total=False):
         """
         positions: (B, N, dim)
         returns E_L: (B, 1)
@@ -125,14 +131,27 @@ class LossFunctions(nn.Module):
         Calculates: E_L(R) =  -1/2 [∇² logpsi(R) + |∇ logpsi(R)|²] + V(R)
        
         """
+        
         logpsi, grad_logpsi, lap_logpsi = self.logpsi_grad_laplacian(positions)
+        #potential energy
         V = self.potential(positions)
 
         grad_sq = torch.sum(grad_logpsi**2, dim=(1, 2)).unsqueeze(1)
 
-        #calculate the local energy E_L for each position in the batch 
-        E_K= -0.5 * (lap_logpsi + grad_sq) 
-        E_L = E_K +  V # size (B, 1)
+        E_K = -0.5 * (lap_logpsi + grad_sq) 
+        
+        if self.model.N >= 2 and self.model.a > 0.0:
+            V_coulomb = self.coulomb(positions)
+        else:
+            V_coulomb = torch.zeros_like(V)
 
-        return E_L, E_K, V
+        #calculate the local energy E_L for each position in the batch 
+        
+        E_L = E_K + V + V_coulomb         # size (B, 1)
+
+        if total: #shortcut for memory saving
+            return E_L
+        
+        else:
+            return E_L, E_K, V, V_coulomb
     

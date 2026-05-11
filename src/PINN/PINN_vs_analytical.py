@@ -130,6 +130,129 @@ def plot_energies(PINN_energies, energies):
     plt.show()
 
 
+def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, omega_ho=1.0, device="cpu", full=False):
+    energies_for_plot = []
+
+    if beta == 1.0:
+        E_ana= N * d / 2
+    else:
+        E_ana = N * (1 + beta / 2)
+
+    max_plot_points = 10000
+    batch_size = 10000
+    model_name=f'{model_name}.pth'
+
+    model = model_reconstructer(model_name, N, d, a=a, beta=beta, omega_z=omega_z, omega_ho=omega_ho)
+
+    if beta ==1.0:
+        beta=None
+        positions= load_pos_memmap(
+            n_samples=samples,
+            N=N,
+            d=d,
+            beta=beta,
+            a=a,
+        )
+
+    else:
+        positions= load_pos_memmap(
+            n_samples=samples,
+            N=N,
+            d=d,
+            beta=beta,
+            a=a,
+        )
+
+    E_sum = 0.0
+    E2_sum = 0.0
+    count = 0
+    E_K_sum = 0.0
+    V_sum = 0.0
+    V_coulomb_sum = 0.0
+    trainer = Training(model)
+
+    if full == False:
+
+        positions_i = torch.tensor(positions[-10_000:],dtype=torch.float32,device=device,requires_grad=True,)
+
+        E_L, E_K, V, V_coulomb = trainer.energy_model(positions_i)
+
+        E_i   = E_L.detach().cpu().numpy().reshape(-1)
+        E_K_i = E_K.detach().cpu().numpy().reshape(-1)
+        V_i   = V.detach().cpu().numpy().reshape(-1)
+        V_coulomb_i = V_coulomb.detach().cpu().numpy().reshape(-1)
+
+        E_L_mean = E_L.mean().item()
+        E_K_mean = E_K.mean().item()
+        V_mean = V.mean().item()
+        V_coulomb_mean = V_coulomb.mean().item()
+        E_L_var = E_L.var().item()
+
+        E_std = np.sqrt(max(E_L_var, 0.0))
+        print(f"Using last 10,000 positions for quick energy evaluation:")
+        print(f"N = {N}, d = {d}, beta = {beta}, a = {a}")
+        print(f"PINN E_mean = {E_L_mean:.8f} and E_ana = {E_ana:.8f}")
+        print(f"PINN E_std  = {E_std:.8f}")
+        print(f"PINN E_K_mean = {E_K_mean:.8f}")
+        print(f"PINN V_mean = {V_mean:.8f}")
+        print(f"PINN V_coulomb_mean = {V_coulomb_mean:.8f}")
+        plot_energies(E_i, E_ana)
+
+        return E_L_mean, E_std
+        
+    # if full = True we evaluate the energy on the full dataset (can be very slow, so we do it in batches and only save a subset of energies for plotting)
+    for start in range(0, samples, batch_size):
+        stop = min(start + batch_size, samples)
+
+        print(f"Loading positions: {start} / {samples}", end="\r")
+
+        positions_i = torch.tensor(positions[start:stop],dtype=torch.float32,
+            device=device,
+            requires_grad=True,
+        )
+        
+        E_L, E_K, V, V_coulomb = trainer.energy_model(positions_i)
+
+        E_i = E_L.detach().cpu().numpy().reshape(-1)
+        E_K_i = E_K.detach().cpu().numpy().reshape(-1)
+        V_i = V.detach().cpu().numpy().reshape(-1)
+        V_coulomb_i = V_coulomb.detach().cpu().numpy().reshape(-1)
+
+        # save subset of VMC energies for plotting
+        remaining = max_plot_points - len(energies_for_plot)
+        if remaining > 0:
+            energies_for_plot.extend(E_i[:remaining])
+
+        E_sum += E_i.sum()
+        E2_sum += np.sum(E_i**2)
+        count += E_i.size
+        E_K_sum += E_K_i.sum()
+        V_sum += V_i.sum()
+        V_coulomb_sum += V_coulomb_i.sum()
+
+        # delete for more memory
+        del positions_i, E_L, E_K, V, V_coulomb
+
+    E_mean = E_sum / count
+    E_var = E2_sum / count - E_mean**2
+    E_K_mean = E_K_sum / count
+    V_mean = V_sum / count
+    V_coulomb_mean = V_coulomb_sum / count
+    E_std = np.sqrt(E_var)
+
+    print("\npositions obtained")
+    print(f"N = {N}, d = {d}, beta = {beta}, a = {a}")
+    print(f"PINN E_mean = {E_mean:.8f} and E_ana = {E_ana:.8f}")
+    print(f"PINN E_std  = {E_std:.8f}")
+    print(f"PINN E_K_mean = {E_K_mean:.8f}")
+    print(f"PINN V_mean = {V_mean:.8f}")
+    print(f"PINN V_coulomb_mean = {V_coulomb_mean:.8f}")
+    plot_energies(energies_for_plot, E_ana)
+
+    return E_mean, E_std
+
+
+
 def plot_psi_sqare(positions, PINN_log_wf_array):
     dim=1
     N=2
@@ -190,36 +313,4 @@ def plot_psi_sqare(positions, PINN_log_wf_array):
 
     return 0
 
-def load_positions_and_energy_from_params(N, d, beta=None, a=0.0, device="cpu"):
-    path = find_npz_file(data_dir, N=N, d=d, beta=beta, a=a)
 
-    data = np.load(path)
-
-    r_all = data["r_all"]
-    E_ana = data["E"]
-
-    positions = torch.tensor(r_all, dtype=torch.float32, device=device)
-    energies = torch.tensor(E_ana, dtype=torch.float32, device=device).reshape(-1, 1)
-
-    n_samples, N_loaded, dim_loaded = r_all.shape
-
-    return positions, energies.detach().cpu().numpy(), n_samples, N_loaded, dim_loaded
-
-def find_npz_file(data_dir, N, d, beta=None, a=0.0):
-    """
-    Finds file with pattern:
-    r_all_E_N{N}_d{d}_beta{beta}_a{a}.npz
-    """
-
-    data_dir = Path(data_dir)
-
-    beta_str = "None" if beta is None else str(beta)
-    a_str = str(a)
-
-    filename = f"r_all_E_N{N}_d{d}_beta{beta_str}_a{a_str}.npz"
-    path = data_dir / filename
-
-    if not path.exists():
-        raise FileNotFoundError(f"Could not find file: {path}")
-
-    return path
