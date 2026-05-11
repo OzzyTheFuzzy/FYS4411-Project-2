@@ -22,6 +22,10 @@
 //  ./vmc bf 2 2 --rbm
 //  ./vmc is 0.02 2 2 --rbm
 //  ./vmc is 0.02 10 3 --interact --rbm
+//  ./vmc is 0.02 2 2 --interact --rbm --opt rbmadam --lr 0.05 --Nh 2
+//          "--opt rbmadam" is for the adam optimizer in RBM
+//          "--lr 0.05" is the learning rate for the optimizer
+//          "--Nh 2" is the hidden layers number in RBM
 
 #include <iostream>
 #include <vector>
@@ -33,6 +37,7 @@
 #include <limits>
 #include <sstream>
 #include <cmath>
+#include <random>
 
 #include "system.h"
 #include "WaveFunctions/anisotropicgaussian.h"
@@ -51,6 +56,7 @@
 #include "NNsampler.h"
 #include "Solvers/montecarlo.h"
 #include "optimizer.h"
+#include "rbmoptimizer.h"
 #include "utilities.h"
 #include "common.h"
 
@@ -102,7 +108,14 @@ int main(int argc, char** argv) {
 
     // Restricted Boltzman Machine
     bool useRBM = false;
-    unsigned int Nh = 2;
+    unsigned int Nh = 4;
+
+    // RBM Adam optimization parameters
+    int rbmAdamIterations = 100;
+    double rbmLearningRate = 0.01;
+    double rbmBeta1 = 0.9;
+    double rbmBeta2 = 0.999;
+    double rbmAdamEps = 1e-8;
 
     // Density calculation
     bool useDensityMode = false;
@@ -180,12 +193,21 @@ int main(int argc, char** argv) {
             optMethod = argv[i + 1];
             if (optMethod == "bfgs") {useOptimization = 1;}
             else if (optMethod == "doubleAdam") {useOptimization = 2;}
+            else if (optMethod == "rbmadam") {
+                useOptimization = 3;
+                useRBM = true;}
             else {
                 std::cerr << "Unknown optimization method: " << optMethod << "\n";
                 return 1;
             }
         }
         if (tok == "--rbm") {useRBM = true;}
+        if (tok == "--lr") {
+            rbmLearningRate = std::stod(argv[i + 1]);
+        }
+        if (tok == "--Nh") {
+            Nh = std::stod(argv[i + 1]);
+        }
         if (tok == "--NN") {useNN = true;}
         if (tok == "--replicas") {
             nReplicas = std::stoi(argv[i + 1]);
@@ -230,7 +252,7 @@ int main(int argc, char** argv) {
     double bestAlpha = userAlpha;
     double bestEnergy = std::numeric_limits<double>::quiet_NaN();
 
-    const std::string modelTag = useInteraction ? "_interac" : "_";
+    const std::string modelTag = useInteraction ? "_interac_" : "_";
 
     if (useOptimization == 1) {
         std::cout << "Running BFGS-style optimization for alpha...\n";
@@ -244,7 +266,7 @@ int main(int argc, char** argv) {
             return out;
             };
 
-        std::string optFile = txtDir + "opt_path" + modelTag + "_mode_" + modeToString(mode);
+        std::string optFile = txtDir + "alpha_opt" + modelTag + modeToString(mode);
         if (mode == Mode::Importance) optFile += "_dt_" + doubleToTag(dt);
         optFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
@@ -365,7 +387,36 @@ int main(int argc, char** argv) {
         }
 
     }
-    else {
+    else if (useRBM && useOptimization == 3) {
+        std::cout << "\n=== RBM Adam optimization ===\n";
+        std::cout << "Iterations = " << rbmAdamIterations
+              << ", learning rate = " << rbmLearningRate << "\n";
+
+        RBMAdamOptimizer rbmOptimizer(a, b, W, rbmLearningRate, rbmBeta1, rbmBeta2, rbmAdamEps);
+
+        std::string OptFile = txtDir + "optimization_" + "lrate_" + doubleToTag(rbmLearningRate) + modelTag + modeToString(mode);
+        if (mode == Mode::Importance) OptFile += "_dt_" + doubleToTag(dt);
+        OptFile += "_RBM_hidden_" + std::to_string(Nh);
+        if (gamma != 1.0) OptFile += "_gamma_" + doubleToTag(gamma);
+        OptFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
+
+        std::ofstream outOpt(OptFile);
+        outOpt << "# iter energy acceptance cpu_seconds\n";
+        outOpt << std::setprecision(12);
+
+        for (int iter = 0; iter < rbmAdamIterations; ++iter) {
+            RunResult r = runVMC(N, D, optSteps, optEquil, omega, bestAlpha, stepParam, mode, baseSeed + 100000 * iter,
+                 false, false, useInteraction, true, a, b, W, beta, gamma, hardCoreA);
+
+            rbmOptimizer.update(a, b, W, r.gradienta, r.gradientb, r.gradientw);
+            outOpt << iter << " " << r.energy << " " << r.acceptance << " " << r.cpu_seconds << "\n";
+
+            std::cout << "RBM Adam iter " << iter << " | E = " << r.energy << " | acceptance = " << r.acceptance << "\n";
+        }
+
+        outOpt.close();
+        std::cout << "Saved RBM Adam optimization path to: " << OptFile << "\n";  
+    } else {
         if (useRBM) {
             std::cout << "Using a = " << a << "\n";
             std::cout << "Using b = " << b << "\n";
@@ -390,11 +441,11 @@ int main(int argc, char** argv) {
         const std::string jTag = useNoJastrow ? "_noJ" : "_withJ";
 
         std::string densZFile = txtDir + "density_z" + modelTag + jTag
-            + "_mode_" + modeToString(mode)
+            + modeToString(mode)
             + "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
         std::string densRhoFile = txtDir + "density_rho" + modelTag + jTag
-            + "_mode_" + modeToString(mode)
+            + modeToString(mode)
             + "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
         std::ofstream outZ(densZFile);
@@ -421,26 +472,34 @@ int main(int argc, char** argv) {
 
     // ---------------- Production run ----------------
 
-    std::string prodFile = txtDir + "energy" + modelTag + "mode_" + modeToString(mode);
-    if (useRBM) prodFile += "_RBM_hidden_" + std::to_string(Nh);
+    std::string prodFile = txtDir + "energy" + modelTag + modeToString(mode);
     if (mode == Mode::Importance) prodFile += "_dt_" + doubleToTag(dt);
+    if (useRBM) prodFile += "_RBM_hidden_" + std::to_string(Nh);
     if (gamma != 1.0) prodFile += "_gamma_" + doubleToTag(gamma);
     prodFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
-    std::string histFile = txtDir + "energy_history" + modelTag + "_mode_" + modeToString(mode);
+    std::string histFile = txtDir + "energy_history" + modelTag + modeToString(mode);
     if (mode == Mode::Importance) histFile += "_dt_" + doubleToTag(dt);
     histFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
-    std::string gradientFile = txtDir + "gradients" + modelTag + "mode_" + modeToString(mode);
-    if (useRBM) gradientFile += "_RBM_hidden" + std::to_string(Nh);
+    std::string gradientFile = txtDir + "gradients" + modelTag + modeToString(mode);
     if (mode == Mode::Importance) gradientFile += "_dt_" + doubleToTag(dt);
+    if (useRBM) gradientFile += "_RBM_hidden" + std::to_string(Nh);
     if (gamma != 1.0) gradientFile += "_gamma_" + doubleToTag(gamma);
     gradientFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
-    std::cout << "\n=== Production run with alpha=" << bestAlpha
-        << " | local energy eval: analytic" 
-        << " | replicas=" << nReplicas
-        << " ===\n";
+    if (useRBM) {
+        std::cout << "\n=== Production run with parameters:" 
+            << "\na = " << a
+            << "\nb = " << b
+            << "\nW = " << W;
+
+    } else {
+        std::cout << "\n=== Production run with alpha=" << bestAlpha
+            << " | local energy eval: analytic" 
+            << " | replicas=" << nReplicas
+            << " ===\n";
+    }
 
     /*
     ParallelRunResult prodPar = runVMCReplicasParallel(
@@ -499,7 +558,6 @@ int main(int argc, char** argv) {
     }
 
     if (useRBM) {
-        std::cout << "\n\nDEBUG: last if detected\n\n";
         std::ofstream outGrad(gradientFile);
         outGrad << "Gradients\n";
         outGrad << "=========\n\n";
@@ -576,7 +634,7 @@ int main(int argc, char** argv) {
 
     outProd.close();
 
-    std::cout << "Saved production result to: " << prodFile << "\n";
+    std::cout << "\nSaved production result to: " << prodFile << "\n";
     std::cout << "Saved gradient result to: " << gradientFile << "\n";
 
     /*
@@ -599,5 +657,6 @@ int main(int argc, char** argv) {
     outHist.close();
     std::cout << "Saved energy histories to: " << histFile << "\n";
     */
+
     return 0;
 }
