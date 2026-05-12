@@ -36,11 +36,25 @@
 BoltzmannMachine::BoltzmannMachine(
     std::vector<std::vector<double>> a,
     std::vector<double> b,
-    std::vector<std::vector<std::vector<double>>> w
+    std::vector<std::vector<std::vector<double>>> w,
+    double gamma
 ) : m_a(a), m_b(b), m_w(w), m_nParticles(a.size()),
 m_nDim(a[0].size()), m_nHidden(b.size()) {
+
+    assert(gamma > 0.0);
+
+    // Default: isotropic oscillator widths.
+    m_sigma2.assign(m_nDim, 1.0);
+
+    // Elliptic trap convention:
+    // D = 2: V = 1/2 (x^2 + gamma^2 y^2)
+    // D = 3: V = 1/2 (x^2 + y^2 + gamma^2 z^2)
+    // Exact ground state has exp[-gamma * last_coordinate^2 / 2],
+    // so sigma_last^2 = 1/gamma.
+    if (m_nDim >= 2) {
+        m_sigma2[m_nDim - 1] = 1.0 / gamma;
+    }
     // Number of trainable RBM parameters:
-    //
     //   a[p][d]      -> N_particles * D
     //   b[h]         -> N_hidden
     //   w[p][d][h]   -> N_particles * D * N_hidden
@@ -64,7 +78,7 @@ std::vector<double> BoltzmannMachine::QFac(std::vector<std::unique_ptr<class Par
         for (int p = 0; p < m_nParticles; p++) {
             const auto& r = particles[p]->getPosition();
             for (int d = 0; d < m_nDim; d++) {
-                Q[h] += r[d] * m_w[p][d][h];
+                Q[h] += r[d] * m_w[p][d][h]/m_sigma2[d];
             }
         }
     }
@@ -81,8 +95,6 @@ std::vector<double> BoltzmannMachine::QFac(std::vector<std::unique_ptr<class Par
 //
 // Here sigma = 1.0, so sigma^2 = 1.
 double BoltzmannMachine::evaluate(std::vector<std::unique_ptr<class Particle>>& particles) {
-    double sigma = 1.0;
-    double sig2 = sigma * sigma;
 
     double Psi1 = 0.0;
     double Psi2 = 1.0;
@@ -92,7 +104,8 @@ double BoltzmannMachine::evaluate(std::vector<std::unique_ptr<class Particle>>& 
     for (int p = 0; p < m_nParticles; p++) {
         const auto& r = particles[p]->getPosition();
         for (int d = 0; d < m_nDim; d++) {
-            Psi1 += (r[d] - m_a[p][d]) * (r[d] -m_a[p][d]);
+            const double diff = r[d] - m_a[p][d];
+            Psi1 += diff * diff / (2.0 * m_sigma2[d]);
         }
     }
 
@@ -100,7 +113,7 @@ double BoltzmannMachine::evaluate(std::vector<std::unique_ptr<class Particle>>& 
         Psi2 *= (1.0 + std::exp(Q[h]));
     }
 
-    Psi1 = std::exp(-Psi1 / (2.0 * sig2));
+    Psi1 = std::exp(-Psi1);
 
     return Psi1 * Psi2;
 }
@@ -113,9 +126,6 @@ double BoltzmannMachine::evaluate(std::vector<std::unique_ptr<class Particle>>& 
 //
 //   E_L = -1/2 * (nabla^2 Psi / Psi) + V(R)
 double BoltzmannMachine::computeDoubleDerivative(std::vector<std::unique_ptr<class Particle>>& particles){
-    const double sigma = 1.0;
-    const double sig2 = sigma * sigma;
-    const double sig4 = sig2 * sig2;
 
     const double psi = evaluate(particles);
     const std::vector<double> Q = QFac(particles);
@@ -127,6 +137,8 @@ double BoltzmannMachine::computeDoubleDerivative(std::vector<std::unique_ptr<cla
 
         for (int d = 0; d < m_nDim; d++) {
             const double Xi = r[d];
+            const double sig2 = m_sigma2[d];
+            const double sig4 = sig2 * sig2;
 
             double first = -(Xi - m_a[p][d]) / sig2;
             double second = -1.0 / sig2;
@@ -157,8 +169,6 @@ double BoltzmannMachine::computeDoubleDerivative(std::vector<std::unique_ptr<cla
 // where
 //   sigmoid(Q_h) = 1 / (1 + exp(-Q_h)).
 std::vector<double> BoltzmannMachine::computeQuantumForce(std::vector<std::unique_ptr<class Particle>>& particles, unsigned int particleIndex) {
-    const double sigma = 1.0;
-    const double sig2 = sigma * sigma;
 
     const std::vector<double> Q = QFac(particles);
     const std::vector<double>& r = particles[particleIndex]->getPosition();
@@ -167,6 +177,7 @@ std::vector<double> BoltzmannMachine::computeQuantumForce(std::vector<std::uniqu
 
     for (int d = 0; d < m_nDim; d++) {
         const double Xpd = r[d];
+        const double sig2 = m_sigma2[d];
         double dlnpsi = -(Xpd - m_a[particleIndex][d]) / sig2;
 
         for (int h = 0; h < m_nHidden; h++) {
@@ -191,8 +202,6 @@ std::vector<double> BoltzmannMachine::computeQuantumForce(std::vector<std::uniqu
 RBMParameterDerivatives BoltzmannMachine::computeParameterDerivatives(
     std::vector<std::unique_ptr<class Particle>>& particles)
 {
-    const double sigma = 1.0;
-    const double sig2 = sigma * sigma;
 
     const std::vector<double> Q = QFac(particles);
 
@@ -214,6 +223,7 @@ RBMParameterDerivatives BoltzmannMachine::computeParameterDerivatives(
         const auto& r = particles[p]->getPosition();
 
         for (int d = 0; d < m_nDim; d++) {
+            const double sig2 = m_sigma2[d];
             der.dA[p][d] = (r[d] - m_a[p][d]) / sig2;
 
             for (int h = 0; h < m_nHidden; h++) {

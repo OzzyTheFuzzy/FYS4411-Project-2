@@ -258,7 +258,7 @@ def main():
         blocked = blocking_analysis(energies)
 
         report_file = outdir / f"{infile_path.stem}_replica{replica}_blocking_report.txt"
-        save_blocking_report(str(report_file), blocked, naive, rho1)
+        #save_blocking_report(str(report_file), blocked, naive, rho1)
 
         summary_rows.append({
             "replica": replica,
@@ -279,7 +279,6 @@ def main():
         print(f"  Blocked stderr       : {blocked['stderr']:.12e}")
         print(f"  Stopping level k     : {blocked['k_stop']}")
         print(f"  Lag-1 corr (original): {rho1:.6e}")
-        print(f"  Saved report to      : {report_file}")
 
     summary_file = outdir / f"{infile_path.stem}_blocking_summary.txt"
     save_summary_report(str(summary_file), summary_rows)

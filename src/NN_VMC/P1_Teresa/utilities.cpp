@@ -10,6 +10,8 @@
 #include <limits>
 #include <cstdlib>
 #include <cmath>
+#include <stdexcept>
+#include <algorithm>
 
 #include "system.h"
 #include "WaveFunctions/simplegaussian.h"
@@ -33,9 +35,11 @@
 std::string modeToString(Mode m) {
     return (m == Mode::Importance) ? "is" : "bf";
 }
+/*
 std::string evalToString(EvalType e) {
     return (e == EvalType::Numerical) ? "nu" : "an";
 }
+*/
 
 // turn 0.005 -> "0p005" for filenames
 std::string doubleToTag(double x) {
@@ -49,6 +53,131 @@ std::string doubleToTag(double x) {
     return s;
 }
 
+namespace {
+// ---------- shape checks ----------
+bool sameShape2D(
+    const std::vector<std::vector<double>>& A,
+    const std::vector<std::vector<double>>& B
+) {
+    if (A.size() != B.size()) return false;
+    for (std::size_t i = 0; i < A.size(); ++i) {
+        if (A[i].size() != B[i].size()) return false;
+    }
+    return true;
+}
+bool sameShape3D(
+    const std::vector<std::vector<std::vector<double>>>& A,
+    const std::vector<std::vector<std::vector<double>>>& B
+) {
+    if (A.size() != B.size()) return false;
+    for (std::size_t i = 0; i < A.size(); ++i) {
+        if (A[i].size() != B[i].size()) return false;
+        for (std::size_t j = 0; j < A[i].size(); ++j) {
+            if (A[i][j].size() != B[i][j].size()) return false;
+        }
+    }
+    return true;
+}
+// ---------- zero-like constructors ----------
+std::vector<double> zeroLike1D(const std::vector<double>& A) {
+    return std::vector<double>(A.size(), 0.0);
+}
+std::vector<std::vector<double>> zeroLike2D(
+    const std::vector<std::vector<double>>& A
+) {
+    std::vector<std::vector<double>> Z = A;
+    for (auto& row : Z) {
+        std::fill(row.begin(), row.end(), 0.0);
+    }
+    return Z;
+}
+std::vector<std::vector<std::vector<double>>> zeroLike3D(
+    const std::vector<std::vector<std::vector<double>>>& A
+) {
+    std::vector<std::vector<std::vector<double>>> Z = A;
+    for (auto& mat : Z) {
+        for (auto& row : mat) {
+            std::fill(row.begin(), row.end(), 0.0);
+        }
+    }
+    return Z;
+}
+// ---------- add helpers ----------
+void add1D(
+    std::vector<double>& A,
+    const std::vector<double>& B
+) {
+    if (A.size() != B.size()) {
+        throw std::runtime_error("add1D: gradient dimensions do not match.");
+    }
+
+    for (std::size_t i = 0; i < A.size(); ++i) {
+        A[i] += B[i];
+    }
+}
+void add2D(
+    std::vector<std::vector<double>>& A,
+    const std::vector<std::vector<double>>& B
+) {
+    if (!sameShape2D(A, B)) {
+        throw std::runtime_error("add2D: gradient dimensions do not match.");
+    }
+
+    for (std::size_t i = 0; i < A.size(); ++i) {
+        for (std::size_t j = 0; j < A[i].size(); ++j) {
+            A[i][j] += B[i][j];
+        }
+    }
+}
+void add3D(
+    std::vector<std::vector<std::vector<double>>>& A,
+    const std::vector<std::vector<std::vector<double>>>& B
+) {
+    if (!sameShape3D(A, B)) {
+        throw std::runtime_error("add3D: gradient dimensions do not match.");
+    }
+
+    for (std::size_t i = 0; i < A.size(); ++i) {
+        for (std::size_t j = 0; j < A[i].size(); ++j) {
+            for (std::size_t k = 0; k < A[i][j].size(); ++k) {
+                A[i][j][k] += B[i][j][k];
+            }
+        }
+    }
+}
+// ---------- scale helpers ----------
+void scale1D(
+    std::vector<double>& A,
+    double factor
+) {
+    for (double& x : A) {
+        x *= factor;
+    }
+}
+void scale2D(
+    std::vector<std::vector<double>>& A,
+    double factor
+) {
+    for (auto& row : A) {
+        for (double& x : row) {
+            x *= factor;
+        }
+    }
+}
+void scale3D(
+    std::vector<std::vector<std::vector<double>>>& A,
+    double factor
+) {
+    for (auto& mat : A) {
+        for (auto& row : mat) {
+            for (double& x : row) {
+                x *= factor;
+            }
+        }
+    }
+}
+} // namespace
+
 RunResult runVMC(
     unsigned int N,
     unsigned int D,
@@ -59,7 +188,6 @@ RunResult runVMC(
     double stepParam,            // bf: stepLength,  is: dt
     Mode mode,
     int seed,
-    bool printToTerminal,
     bool storeEnergyHistory,
     bool useInteraction,
     bool useRBM,
@@ -107,7 +235,7 @@ RunResult runVMC(
     std::unique_ptr<WaveFunction> waveFunction;
 
     if (useRBM) {
-        waveFunction = std::make_unique<BoltzmannMachine>(a, b, W);
+        waveFunction = std::make_unique<BoltzmannMachine>(a, b, W, gamma);
         if (useInteraction) {
             hamiltonian = std::make_unique<RBMInteractingTrap>(omega, gamma, 1.0);
         } else {
@@ -160,6 +288,11 @@ RunResult runVMC(
         res.gradientw = sampler -> getGradientW();
         res.acceptance = sampler->getAcceptanceRatio();
 
+        // Store the energy values
+        if (storeEnergyHistory){
+            res.energyHistory = sampler ->getEnergyHistory();
+        }
+
         return res;
     }
     else {
@@ -192,11 +325,6 @@ RunResult runVMC(
         // Store the energy values
         if (storeEnergyHistory){
             res.energyHistory = sampler ->getEnergyHistory();
-        }
-
-        if (printToTerminal) {
-            std::cout << "CPU time (production run): " << res.cpu_seconds << " s\n";
-            sampler->printOutputToTerminal(*system);
         }
     
         return res;
@@ -248,7 +376,6 @@ ParallelRunResult runVMCReplicasParallel(
             stepParam,
             mode,
             seed,
-            false,   // avoid mixed terminal output from many threads
             storeEnergyHistory,
             useInteraction,
             useRBM,
@@ -267,20 +394,36 @@ ParallelRunResult runVMCReplicasParallel(
 
     // Average the replica results
     if (useRBM){
-        for (const auto& r : out.replicas) {
-            out.mean.energy += r.energy;
-            //out.mean.gradienta += r.gradienta;
-            //out.mean.gradientb += r.gradientb;
-            //out.mean.gradientw += r.gradientw;
-            out.mean.acceptance += r.acceptance;
-            out.mean.cpu_seconds += r.cpu_seconds;
+        // The RBM has three different gradient objects:
+        //   gradienta : N x D
+        //   gradientb : Nh
+        //   gradientw : N x D x Nh
+        // We initialize the mean arrays using the dimensions of the first replica.
+
+        if (out.replicas.empty()) {
+            throw std::runtime_error("runVMCReplicasParallel: no replicas available.");
         }
-        out.mean.energy /= static_cast<double>(nReplicas);
-        //out.mean.gradienta /= static_cast<double>(nReplicas);
-        //out.mean.gradientb /= static_cast<double>(nReplicas);
-        //out.mean.gradientw /= static_cast<double>(nReplicas);
-        out.mean.acceptance /= static_cast<double>(nReplicas);
-        out.mean.cpu_seconds /= static_cast<double>(nReplicas);
+        out.mean.gradienta = zeroLike2D(out.replicas[0].gradienta);
+        out.mean.gradientb = zeroLike1D(out.replicas[0].gradientb);
+        out.mean.gradientw = zeroLike3D(out.replicas[0].gradientw);
+
+        for (const auto& replica : out.replicas) {
+            out.mean.energy += replica.energy;
+            add2D(out.mean.gradienta, replica.gradienta);
+            add1D(out.mean.gradientb, replica.gradientb);
+            add3D(out.mean.gradientw, replica.gradientw);
+            out.mean.acceptance += replica.acceptance;
+            out.mean.cpu_seconds += replica.cpu_seconds;
+        }
+
+        const double invReplicas = 1.0 / static_cast<double>(nReplicas);
+
+        out.mean.energy *= invReplicas;
+        scale2D(out.mean.gradienta, invReplicas);
+        scale1D(out.mean.gradientb, invReplicas);
+        scale3D(out.mean.gradientw, invReplicas);
+        out.mean.acceptance *= invReplicas;
+        out.mean.cpu_seconds *= invReplicas;
 
     }
     else {

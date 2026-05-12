@@ -3,11 +3,11 @@
 
 // FROM PROJECT 1
 // Examples:
-//  ./vmc bf 100 3 --alpha 0.50
+//  ./vmc bf 0.8 100 3 --alpha 0.50
 //  ./vmc is 0.005 100 3 --alpha 0.50
 //
 // Example running alpha optimization with BFGS:
-//  ./vmc bf 100 3 --opt bfgs
+//  ./vmc bf 0.8 100 3 --opt bfgs
 //  ./vmc is 0.005 100 3 --opt bfgs
 //
 // Example running parallel chains:
@@ -15,11 +15,11 @@
 //  ./vmc is 0.02 500 3 --alpha 0.5 --replicas 4
 //
 // Example running interacting case:
-//  ./vmc bf 10 3 --interact --a 0.0043 --gamma 2.82843 --beta 2.82843 --alpha 0.48 --replicas 4
+//  ./vmc bf 0.8 10 3 --interact --a 0.0043 --gamma 2.82843 --beta 2.82843 --alpha 0.48 --replicas 4
 //
 // FROM PROJECT 2
 // Example to use RBM:
-//  ./vmc bf 2 2 --rbm
+//  ./vmc bf 0.8 2 2 --rbm
 //  ./vmc is 0.02 2 2 --rbm
 //  ./vmc is 0.02 10 3 --interact --rbm
 //  ./vmc is 0.02 2 2 --interact --rbm --opt rbmadam --lr 0.05 --Nh 2
@@ -78,8 +78,8 @@ int main(int argc, char** argv) {
     const double omega = 1.0;
 
     // bf: spatial stepLength, is: time step dt
-    double stepLength = 0.5;
-    double dt = 0.005;
+    double stepLength = 0.8;  
+    double dt = 0.02;
 
     Mode mode = Mode::Importance;
 
@@ -149,16 +149,12 @@ int main(int argc, char** argv) {
 
         if (m == "is") {
             mode = Mode::Importance;
-
             if (argc < 3) {
                 std::cerr << "Usage: ./vmc is <dt> [N D] [--alpha x]\n";
                 return 1;
             }
-
             dt = std::stod(argv[2]);
-
             int idx = 3;
-
             if (idx < argc && std::string(argv[idx]).rfind("--", 0) != 0) {
                 N = static_cast<unsigned int>(std::stoul(argv[idx++]));
             }
@@ -168,9 +164,12 @@ int main(int argc, char** argv) {
         }
         else if (m == "bf") {
             mode = Mode::BruteForce;
-
-            int idx = 2;
-
+            if (argc < 3) {
+                std::cerr << "Usage: ./vmc bf <stepLength> [N D] [--alpha x]\n";
+                return 1;
+            }
+            stepLength = std::stod(argv[2]);
+            int idx = 3;
             if (idx < argc && std::string(argv[idx]).rfind("--", 0) != 0) {
                 N = static_cast<unsigned int>(std::stoul(argv[idx++]));
             }
@@ -259,7 +258,7 @@ int main(int argc, char** argv) {
 
         auto objective = [&](double alpha) -> ObjectiveResult {
             RunResult r = runVMC(N, D, optSteps, optEquil, omega, alpha, stepParam, mode, baseSeed + static_cast<int>(1000 * alpha), 
-                false, false, useInteraction, useRBM, a, b, W, beta, gamma, hardCoreA);
+                false, useInteraction, useRBM, a, b, W, beta, gamma, hardCoreA);
             ObjectiveResult out;
             out.energy = r.energy;
             out.gradient = r.gradient;
@@ -396,6 +395,7 @@ int main(int argc, char** argv) {
 
         std::string OptFile = txtDir + "optimization_" + "lrate_" + doubleToTag(rbmLearningRate) + modelTag + modeToString(mode);
         if (mode == Mode::Importance) OptFile += "_dt_" + doubleToTag(dt);
+        if (mode == Mode::BruteForce) OptFile += "_sl_" + doubleToTag(stepLength);
         OptFile += "_RBM_hidden_" + std::to_string(Nh);
         if (gamma != 1.0) OptFile += "_gamma_" + doubleToTag(gamma);
         OptFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
@@ -406,7 +406,7 @@ int main(int argc, char** argv) {
 
         for (int iter = 0; iter < rbmAdamIterations; ++iter) {
             RunResult r = runVMC(N, D, optSteps, optEquil, omega, bestAlpha, stepParam, mode, baseSeed + 100000 * iter,
-                 false, false, useInteraction, true, a, b, W, beta, gamma, hardCoreA);
+                 false, useInteraction, true, a, b, W, beta, gamma, hardCoreA);
 
             rbmOptimizer.update(a, b, W, r.gradienta, r.gradientb, r.gradientw);
             outOpt << iter << " " << r.energy << " " << r.acceptance << " " << r.cpu_seconds << "\n";
@@ -435,7 +435,7 @@ int main(int argc, char** argv) {
             << " | bins=" << densityBins << " ===\n";
 
         RunResult dens = runVMC(N, D, prodSteps, prodEquil, omega, bestAlpha, stepParam, mode, baseSeed + 7777, 
-            false, false,  useInteraction, useRBM, a, b, W, beta, gamma, hardCoreA, 
+            false,  useInteraction, useRBM, a, b, W, beta, gamma, hardCoreA, 
             densityOnly, true, useNoJastrow, densityBins, densityZMax, densityRhoMax);
 
         const std::string jTag = useNoJastrow ? "_noJ" : "_withJ";
@@ -474,16 +474,21 @@ int main(int argc, char** argv) {
 
     std::string prodFile = txtDir + "energy" + modelTag + modeToString(mode);
     if (mode == Mode::Importance) prodFile += "_dt_" + doubleToTag(dt);
+    if (mode == Mode::BruteForce) prodFile += "_sl_" + doubleToTag(stepLength);
     if (useRBM) prodFile += "_RBM_hidden_" + std::to_string(Nh);
     if (gamma != 1.0) prodFile += "_gamma_" + doubleToTag(gamma);
     prodFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
-    std::string histFile = txtDir + "energy_history" + modelTag + modeToString(mode);
+    std::string histFile = txtDir + "e_history" + modelTag + modeToString(mode);
     if (mode == Mode::Importance) histFile += "_dt_" + doubleToTag(dt);
+    if (mode == Mode::BruteForce) histFile += "_sl_" + doubleToTag(stepLength);
+    if (useRBM) histFile += "_RBM_hidden_" + std::to_string(Nh);
+    if (gamma != 1.0) prodFile += "_gamma_" + doubleToTag(gamma);
     histFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
     std::string gradientFile = txtDir + "gradients" + modelTag + modeToString(mode);
     if (mode == Mode::Importance) gradientFile += "_dt_" + doubleToTag(dt);
+    if (mode == Mode::BruteForce) gradientFile += "_sl_" + doubleToTag(stepLength);
     if (useRBM) gradientFile += "_RBM_hidden" + std::to_string(Nh);
     if (gamma != 1.0) gradientFile += "_gamma_" + doubleToTag(gamma);
     gradientFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
@@ -501,7 +506,7 @@ int main(int argc, char** argv) {
             << " ===\n";
     }
 
-    /*
+    
     ParallelRunResult prodPar = runVMCReplicasParallel(
         N, D,
         prodSteps,
@@ -522,8 +527,8 @@ int main(int argc, char** argv) {
         gamma,
         hardCoreA
     );
-    */
 
+    /*
     RunResult result = runVMC(
         N, D,
         prodSteps,
@@ -533,7 +538,6 @@ int main(int argc, char** argv) {
         stepParam,
         mode,
         baseSeed + 7777,
-        false,
         false,
         useInteraction,
         useRBM,
@@ -550,6 +554,7 @@ int main(int argc, char** argv) {
         densityZMax,
         densityRhoMax
     );
+    */
 
     std::ofstream outProd(prodFile);
     if (!outProd) {
@@ -562,15 +567,15 @@ int main(int argc, char** argv) {
         outGrad << "Gradients\n";
         outGrad << "=========\n\n";
         // Write a
-        outGrad << "Gradient_a (" << result.gradienta.size() << " x ";
-        if (!result.gradienta.empty()) outGrad << result.gradienta[0].size();
+        outGrad << "Gradient_a (" << prodPar.mean.gradienta.size() << " x ";
+        if (!prodPar.mean.gradienta.empty()) outGrad << prodPar.mean.gradienta[0].size();
         else outGrad << 0;
         outGrad << ")\n";
-        for (size_t i = 0; i < result.gradienta.size(); ++i) {
+        for (size_t i = 0; i < prodPar.mean.gradienta.size(); ++i) {
             outGrad << "Gradient_a[" << i << "] = ";
-            for (size_t d = 0; d < result.gradienta[i].size(); ++d) {
-                outGrad << result.gradienta[i][d];
-                if (d + 1 < result.gradienta[i].size()) outGrad << " ";
+            for (size_t d = 0; d < prodPar.mean.gradienta[i].size(); ++d) {
+                outGrad << prodPar.mean.gradienta[i][d];
+                if (d + 1 < prodPar.mean.gradienta[i].size()) outGrad << " ";
             }
             outGrad << "\n";
         }
@@ -578,26 +583,26 @@ int main(int argc, char** argv) {
         // Write b
         outGrad << "Gradient_b (" << b.size() << ")\n";
         outGrad << "Gradient_b = ";
-        for (size_t j = 0; j < result.gradientb.size(); ++j) {
-            outGrad << result.gradientb[j];
-            if (j + 1 < result.gradientb.size()) outGrad << " ";
+        for (size_t j = 0; j < prodPar.mean.gradientb.size(); ++j) {
+            outGrad << prodPar.mean.gradientb[j];
+            if (j + 1 < prodPar.mean.gradientb.size()) outGrad << " ";
         }
         outGrad << "\n\n";
         // Write W
-        outGrad << "Gradient_W (" << result.gradientw.size() << " x ";
-        if (!result.gradientw.empty()) outGrad << result.gradientw[0].size();
+        outGrad << "Gradient_W (" << prodPar.mean.gradientw.size() << " x ";
+        if (!prodPar.mean.gradientw.empty()) outGrad << prodPar.mean.gradientw[0].size();
         else outGrad << 0;
         outGrad << " x ";
-        if (!result.gradientw.empty() && !result.gradientw[0].empty()) outGrad << result.gradientw[0][0].size();
+        if (!prodPar.mean.gradientw.empty() && !prodPar.mean.gradientw[0].empty()) outGrad << prodPar.mean.gradientw[0][0].size();
         else outGrad << 0;
         outGrad << ")\n";
-        for (size_t i = 0; i < result.gradientw.size(); ++i) {
+        for (size_t i = 0; i < prodPar.mean.gradientw.size(); ++i) {
             outGrad << "Gradient_W[" << i << "] =\n";
-            for (size_t d = 0; d < result.gradientw[i].size(); ++d) {
+            for (size_t d = 0; d < prodPar.mean.gradientw[i].size(); ++d) {
                 outGrad << "  ";
-                for (size_t j = 0; j < result.gradientw[i][d].size(); ++j) {
-                    outGrad << result.gradientw[i][d][j];
-                    if (j + 1 < result.gradientw[i][d].size()) outGrad << " ";
+                for (size_t j = 0; j < prodPar.mean.gradientw[i][d].size(); ++j) {
+                    outGrad << prodPar.mean.gradientw[i][d][j];
+                    if (j + 1 < prodPar.mean.gradientw[i][d].size()) outGrad << " ";
                 }
                 outGrad << "\n";
             }
@@ -605,14 +610,16 @@ int main(int argc, char** argv) {
         }
         outGrad.close();
 
-        outProd << "# N D mode stepParam replicas energy acceptance cpu_seconds\n";
+        outProd << "# N D mode stepParam replicas energy acceptance cpu_seconds energy_std energy_stderr\n";
         outProd << N << " " << D << " " << modeToString(mode) << " "
             << stepParam << " "
             << nReplicas << " "
             << std::setprecision(12)
-            << result.energy << " "
-            << result.acceptance << " "
-            << result.cpu_seconds << "\n";
+            << prodPar.mean.energy << " "
+            << prodPar.mean.acceptance << " "
+            << prodPar.mean.cpu_seconds << " "
+            << prodPar.energy_std << " "
+            << prodPar.energy_stderr << "\n";
 
     }
     /*
@@ -637,7 +644,6 @@ int main(int argc, char** argv) {
     std::cout << "\nSaved production result to: " << prodFile << "\n";
     std::cout << "Saved gradient result to: " << gradientFile << "\n";
 
-    /*
     std::ofstream outHist(histFile);
     if (!outHist) {
         std::cerr << "Error: could not open " << histFile << "\n";
@@ -656,7 +662,6 @@ int main(int argc, char** argv) {
 
     outHist.close();
     std::cout << "Saved energy histories to: " << histFile << "\n";
-    */
 
     return 0;
 }

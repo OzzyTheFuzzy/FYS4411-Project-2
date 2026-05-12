@@ -57,7 +57,6 @@ RunResult runVMC(
     double stepParam,            // bf: stepLength, is: dt
     Mode mode,
     int seed,
-    bool printToTerminal,
     bool storeEnergyHistory = false,
     bool useInteraction = false,
     bool useRBM = false,

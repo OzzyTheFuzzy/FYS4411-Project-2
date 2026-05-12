@@ -16,7 +16,8 @@ public:
     BoltzmannMachine(
         std::vector<std::vector<double>> a,
         std::vector<double> b,
-        std::vector<std::vector<std::vector<double>>> w);
+        std::vector<std::vector<std::vector<double>>> w,
+        double gamma);
 
     double evaluate(std::vector<std::unique_ptr<class Particle>>& particles) override;
     std::vector<double> QFac(std::vector<std::unique_ptr<class Particle>>& particles);
@@ -30,6 +31,7 @@ private:
     std::vector<std::vector<double>> m_a;
     std::vector<double> m_b;
     std::vector<std::vector<std::vector<double>>> m_w;
+    std::vector<double> m_sigma2;
     int m_nParticles;
     int m_nDim;
     int m_nHidden;
