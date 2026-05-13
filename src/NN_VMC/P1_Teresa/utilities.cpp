@@ -35,11 +35,6 @@
 std::string modeToString(Mode m) {
     return (m == Mode::Importance) ? "is" : "bf";
 }
-/*
-std::string evalToString(EvalType e) {
-    return (e == EvalType::Numerical) ? "nu" : "an";
-}
-*/
 
 // turn 0.005 -> "0p005" for filenames
 std::string doubleToTag(double x) {

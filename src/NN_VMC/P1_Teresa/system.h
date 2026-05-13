@@ -34,9 +34,6 @@ public:
             bool storeEnergyHistory = false
     );
 
-    std::unique_ptr<class NNsampler> runMetropolisSteps_NN(double stepParameter,
-        unsigned int numberOfMetropolisSteps, WaveFunction& wf_train);
-
     // Helper used by Sampler
     double computeLocalEnergy();
 

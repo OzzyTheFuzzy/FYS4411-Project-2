@@ -43,9 +43,7 @@
 #include "WaveFunctions/anisotropicgaussian.h"
 #include "WaveFunctions/simplegaussian.h"
 #include "WaveFunctions/boltzmannmachine.h"
-#include "WaveFunctions/nn_envelope.h"
 #include "Hamiltonians/elliptictrap.h"
-#include "Hamiltonians/repulsiveho.h"
 #include "InitialStates/initialstate.h"
 #include "Solvers/metropolis.h"
 #include "Solvers/importancesampling.h"
@@ -53,21 +51,12 @@
 #include "particle.h"
 #include "sampler.h"
 #include "RBMsampler.h"
-#include "NNsampler.h"
 #include "Solvers/montecarlo.h"
 #include "optimizer.h"
 #include "rbmoptimizer.h"
 #include "utilities.h"
-#include "common.h"
-
-#include <torch/torch.h>
 
 int main(int argc, char** argv) {
-
-    // Testing the "torch" library
-    //torch::Tensor tensor = torch::eye(3);
-    //std::cout << tensor << std::endl;
-    //return 0;
 
     // ---------------- Defaults ----------------
     const int baseSeed = 2023;
@@ -112,7 +101,7 @@ int main(int argc, char** argv) {
 
     // RBM Adam optimization parameters
     int rbmAdamIterations = 100;
-    double rbmLearningRate = 0.01;
+    double rbmLearningRate = 0.05;
     double rbmBeta1 = 0.9;
     double rbmBeta2 = 0.999;
     double rbmAdamEps = 1e-8;
@@ -130,17 +119,6 @@ int main(int argc, char** argv) {
 
     // Number of replicas with no paralelization by defaults
     int nReplicas = 1;
-
-    // NN parameters
-    bool useNN = false;
-    const int Nhid = 32;
-    const double lr = 1e-3;
-    const int nPretrainSteps = 5000;   // maximize K
-    const int nEnergySteps = 40000;  // minimize E
-    const int nSamples = 10000;  // Metropolis steps per update
-    const double initRange = 1.0;   // for particle setup
-    const double strengthRate = 20;   // hardcore potential strength increase per step
-    auto wf_train = AnisotropicGaussian(0.5, beta); // Non-interacting training target
 
     // ---------------------Parse CLI---------------------
     // First parse bf/is, N, D
@@ -191,7 +169,6 @@ int main(int argc, char** argv) {
         if (tok == "--opt") {
             optMethod = argv[i + 1];
             if (optMethod == "bfgs") {useOptimization = 1;}
-            else if (optMethod == "doubleAdam") {useOptimization = 2;}
             else if (optMethod == "rbmadam") {
                 useOptimization = 3;
                 useRBM = true;}
@@ -207,7 +184,6 @@ int main(int argc, char** argv) {
         if (tok == "--Nh") {
             Nh = std::stod(argv[i + 1]);
         }
-        if (tok == "--NN") {useNN = true;}
         if (tok == "--replicas") {
             nReplicas = std::stoi(argv[i + 1]);
             if (nReplicas < 1) {
@@ -292,100 +268,6 @@ int main(int argc, char** argv) {
             << ", converged = " << opt.converged << "\n";
 
     }
-    else if (useOptimization == 2) {
-        int seedNN = std::chrono::system_clock::now().time_since_epoch().count();
-        auto rng = std::make_unique<Random>(seedNN);
-        std::unique_ptr<MonteCarlo> solver;
-        if (mode == Mode::Importance) {
-            solver = std::make_unique<ImportanceSampling>(std::move(rng), 0.5);
-        }
-        else {
-            solver = std::make_unique<Metropolis>(std::move(rng));
-        }
-        std::vector<std::unique_ptr<Particle>> particles;
-
-        auto wf_nn = std::make_unique<NN_envelope>(N, D, N, Nhid);
-        torch::optim::Adam optimizer(
-            wf_nn->net().parameters(),
-            torch::optim::AdamOptions(lr).betas({ 0.9, 0.999 }).eps(1e-8)
-        );
-
-        // -------- PRE-TRAINING --------
-        std::cout << "Running Adam optimization without interactions...\n";
-
-        auto hamiltonian = std::make_unique<RepulsiveHO>(omega, gamma * omega, 0);
-        
-        if (useInteraction) {
-            particles = setupRandomUniformInitialStateNoOverlap(
-                initRange, D, N, hardCoreA, *rng
-            );
-        }
-        else {
-            particles = setupRandomUniformInitialState(
-                initRange, D, N, *rng
-            );
-        }
-        auto system_pretrain = std::make_unique<System>(
-            std::move(hamiltonian),
-            std::move(wf_nn),
-            std::move(solver),
-            std::move(particles)
-        );
-
-        for (int step = 0; step < nPretrainSteps; step++) {
-            system_pretrain->runEquilibrationSteps(stepParam, optEquil);
-            auto sampler_pretrain = system_pretrain->runMetropolisSteps_NN(stepParam, nSamples, wf_train);
-            auto dKdW = sampler_pretrain->get_dKdW();
-            // Negate: Adam minimizes, but we want to maximize K
-            for (auto& g : dKdW) g = -g;
-
-            optimizer.zero_grad();
-            setNetworkGrads(wf_nn->net(), dKdW);
-            optimizer.step();
-
-            if (step % 500 == 0)
-                std::cout << "  step " << step
-                << "  K = " << sampler_pretrain->get_K() << "\n";
-        }
-
-        // -------- TRAINING --------
-        std::cout << "Running Adam optimization with interactions...\n";
-
-        hamiltonian = std::make_unique<RepulsiveHO>(omega, gamma * omega, hardCoreA);
-        if (useInteraction) {
-            particles = setupRandomUniformInitialStateNoOverlap(
-                initRange, D, N, hardCoreA, *rng
-            );
-        }
-        else {
-            particles = setupRandomUniformInitialState(
-                initRange, D, N, *rng
-            );
-        }
-        auto system = std::make_unique<System>(
-            std::move(hamiltonian),
-            std::move(wf_nn),
-            std::move(solver),
-            std::move(particles)
-        );
-
-        for (int step = 0; step < nEnergySteps; step++) {
-            hamiltonian->set_hardcore_strength(step* strengthRate);
-            
-            system->runEquilibrationSteps(stepParam, optEquil);
-            auto sampler = system->runMetropolisSteps_NN(stepParam, nSamples, wf_train);
-            auto dEdW = sampler->get_dEdW();
-
-            optimizer.zero_grad();
-            setNetworkGrads(wf_nn->net(), dEdW);
-            optimizer.step();
-
-            if (step % 500 == 0)
-                std::cout << "  step " << step
-                << "  E = " << sampler->getEnergy() << "\n";
-        }
-
-    }
     else if (useRBM && useOptimization == 3) {
         std::cout << "\n=== RBM Adam optimization ===\n";
         std::cout << "Iterations = " << rbmAdamIterations
@@ -417,13 +299,7 @@ int main(int argc, char** argv) {
         outOpt.close();
         std::cout << "Saved RBM Adam optimization path to: " << OptFile << "\n";  
     } else {
-        if (useRBM) {
-            std::cout << "Using a = " << a << "\n";
-            std::cout << "Using b = " << b << "\n";
-            std::cout << "Using W = " << W << "\n";
-        } else {
-            std::cout << "Using alpha = " << bestAlpha << "\n";
-        }
+        std::cout << "Using alpha = " << bestAlpha << "\n";
     }
 
     // ---------------- Density calculation ----------------
@@ -483,7 +359,8 @@ int main(int argc, char** argv) {
     if (mode == Mode::Importance) histFile += "_dt_" + doubleToTag(dt);
     if (mode == Mode::BruteForce) histFile += "_sl_" + doubleToTag(stepLength);
     if (useRBM) histFile += "_RBM_hidden_" + std::to_string(Nh);
-    if (gamma != 1.0) prodFile += "_gamma_" + doubleToTag(gamma);
+    if (gamma != 1.0) histFile
+     += "_gamma_" + doubleToTag(gamma);
     histFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
     std::string gradientFile = txtDir + "gradients" + modelTag + modeToString(mode);
@@ -494,10 +371,8 @@ int main(int argc, char** argv) {
     gradientFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
     if (useRBM) {
-        std::cout << "\n=== Production run with parameters:" 
-            << "\na = " << a
-            << "\nb = " << b
-            << "\nW = " << W;
+        std::cout << "\n=== Production run with the optimal parameters: a, b, W" 
+            << " ===\n";
 
     } else {
         std::cout << "\n=== Production run with alpha=" << bestAlpha
@@ -527,34 +402,6 @@ int main(int argc, char** argv) {
         gamma,
         hardCoreA
     );
-
-    /*
-    RunResult result = runVMC(
-        N, D,
-        prodSteps,
-        prodEquil,
-        omega,
-        bestAlpha,
-        stepParam,
-        mode,
-        baseSeed + 7777,
-        false,
-        useInteraction,
-        useRBM,
-        a,
-        b,
-        W,
-        beta,
-        gamma,
-        hardCoreA,
-        densityOnly,
-        true,
-        useNoJastrow,
-        densityBins,
-        densityZMax,
-        densityRhoMax
-    );
-    */
 
     std::ofstream outProd(prodFile);
     if (!outProd) {
