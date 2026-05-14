@@ -27,6 +27,8 @@
 //          "--lr 0.05" is the learning rate for the optimizer
 //          "--Nh 2" is the hidden layers number in RBM
 
+// Best option and last runned option for (N,D)=(2,2) is Nh=2 and lr=0.1
+
 #include <iostream>
 #include <vector>
 #include <memory>
@@ -275,10 +277,10 @@ int main(int argc, char** argv) {
 
         RBMAdamOptimizer rbmOptimizer(a, b, W, rbmLearningRate, rbmBeta1, rbmBeta2, rbmAdamEps);
 
-        std::string OptFile = txtDir + "optimization_" + "lrate_" + doubleToTag(rbmLearningRate) + modelTag + modeToString(mode);
+        std::string OptFile = txtDir + "optimization" + modelTag + modeToString(mode);
         if (mode == Mode::Importance) OptFile += "_dt_" + doubleToTag(dt);
         if (mode == Mode::BruteForce) OptFile += "_sl_" + doubleToTag(stepLength);
-        OptFile += "_RBM_hidden_" + std::to_string(Nh);
+        OptFile += "_lr_" + doubleToTag(rbmLearningRate)+ "_Nh_" + std::to_string(Nh);
         if (gamma != 1.0) OptFile += "_gamma_" + doubleToTag(gamma);
         OptFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
@@ -351,14 +353,14 @@ int main(int argc, char** argv) {
     std::string prodFile = txtDir + "energy" + modelTag + modeToString(mode);
     if (mode == Mode::Importance) prodFile += "_dt_" + doubleToTag(dt);
     if (mode == Mode::BruteForce) prodFile += "_sl_" + doubleToTag(stepLength);
-    if (useRBM) prodFile += "_RBM_hidden_" + std::to_string(Nh);
+    if (useRBM) prodFile += "_lr_" + doubleToTag(rbmLearningRate)+ "_Nh_" + std::to_string(Nh);
     if (gamma != 1.0) prodFile += "_gamma_" + doubleToTag(gamma);
     prodFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 
     std::string histFile = txtDir + "e_history" + modelTag + modeToString(mode);
     if (mode == Mode::Importance) histFile += "_dt_" + doubleToTag(dt);
     if (mode == Mode::BruteForce) histFile += "_sl_" + doubleToTag(stepLength);
-    if (useRBM) histFile += "_RBM_hidden_" + std::to_string(Nh);
+    if (useRBM) histFile += "_lr_" + doubleToTag(rbmLearningRate)+ "_Nh_" + std::to_string(Nh);
     if (gamma != 1.0) histFile
      += "_gamma_" + doubleToTag(gamma);
     histFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
@@ -366,7 +368,7 @@ int main(int argc, char** argv) {
     std::string gradientFile = txtDir + "gradients" + modelTag + modeToString(mode);
     if (mode == Mode::Importance) gradientFile += "_dt_" + doubleToTag(dt);
     if (mode == Mode::BruteForce) gradientFile += "_sl_" + doubleToTag(stepLength);
-    if (useRBM) gradientFile += "_RBM_hidden" + std::to_string(Nh);
+    if (useRBM) gradientFile += "_lr_" + doubleToTag(rbmLearningRate)+ "_Nh_" + std::to_string(Nh);
     if (gamma != 1.0) gradientFile += "_gamma_" + doubleToTag(gamma);
     gradientFile += "_N" + std::to_string(N) + "_D" + std::to_string(D) + ".txt";
 

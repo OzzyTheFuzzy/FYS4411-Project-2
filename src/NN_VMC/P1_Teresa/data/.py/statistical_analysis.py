@@ -1,8 +1,6 @@
 # must run this script from P1 
-# write in the terminal: python3 data/.py/statistical_analysis.py data/.txt/energy_history_mode_is_dt_0p02_eval_an_N500_D3.txt
+# Run example: python3 data/.py/statistical_analysis.py <path to "e_history" file>
                     
-# the previous line is an example to obtain the (N,D)=(500,3) plot. You can change those numbers.
-
 import numpy as np
 import argparse
 from pathlib import Path
