@@ -13,9 +13,6 @@ project_root = Path(__file__).resolve().parent
 
 data_dir = project_root / "positions_energy_data"
 model_dir = project_root / "models"
-#filename= 'r_all_E_N2_d1_betaNone_a0.0' #without .npz
-
-#model_name = "2N_1D_GELU_32323232_12output.pth" # name of model with .pth
 
 def load_results(model_name):
     with open(f"logs/{model_name}.json", "r") as f:
@@ -198,7 +195,7 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
         print(f"PINN V_coulomb_mean = {V_coulomb_mean:.8f}")
         plot_energies(E_i, E_ana)
 
-        return E_L_mean, E_std
+        return E_L_mean, E_std, E_L
         
     # if full = True we evaluate the energy on the full dataset (can be very slow, so we do it in batches and only save a subset of energies for plotting)
     for start in range(0, samples, batch_size):

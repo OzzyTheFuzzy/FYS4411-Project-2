@@ -6,21 +6,22 @@ from training import Training
 from initialize_data import InitializeData
 from model import SE_Model
 from PINN_vs_analytical import *
+from blocking import blocking_error, plot_blocking
 
 # Configuration
 width = 0.70       # Width of the Gaussian distribution for sampling collocation points
 a     = 0.0043      # 0.0043  for interactions   Hard-core radius (set to 0 for no interactions)
-N     = 2           # Number of particles (dimensions)
+N     = 10         # Number of particles (dimensions)
 dim   = 3           # Dimensionality of the particles
 omega_ho = 1.0        # Frequency of the harmonic trap in the x and y directions
 beta     =  2.82843   # 
 omega_z  = beta       # Frequency of the harmonic trap in the z-direction. Set equal to beta for antisotropic case, and to 1 for isotropic case
 
 #  Training parameters
-training_points = 50000
+training_points = 10000
 seed            = 17
-epochs      = 150
-batch_size  = 2000
+epochs      = 100
+batch_size  = 500
 num_batches = training_points // batch_size
 val_points  = 10000
 val_width   = width # width of the Gaussian distribution for sampling validation collocation points
@@ -28,15 +29,15 @@ val_seed    = 42 # random seed for sampling validation collocation points
 lr          = 1e-3 # learning rate for optimizer. Will be tuned during training by scheduler for smoother convergence
 lr_E        = 1e-5 # learning rate for energy parameter, set lower than lr for smoother convergence towards true GS energy
 lr_alpha    = 1e-6 # learning rate for alpha parameter, set lower than
-trainable_alpha = False # whether to train the energy parameter alpha or keep it fixed during training
+trainable_alpha = True # whether to train the energy parameter alpha or keep it fixed during training
 
-model_name  = f"{N}N_beta{beta}_lr{lr}_a{a}_tp{training_points:.2e}" # name for saving model and logs
+model_name  = f"{N}N_beta{beta}_lr{lr}_a{a}_64_tp{training_points:.2e}" # name for saving model and logs
 
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Create instance of data initialization 
-    print(f"Initializing data for N={N}, dim={dim}, a={a}")
+    print(f"Initializing data for N={N}, dim={dim}, a={a} and beta={beta}")
     data_initializer = InitializeData(N, dim, device=device, dtype=torch.float32, hard_core_radius=a, omega_z=omega_z)
     print("Data initialization complete.")
     # create data for training
@@ -44,7 +45,7 @@ def train_and_evaluate():
     model_config = {
         "dim": dim,
         "N": N,
-        "rho_hidden": [32, 32, 32, 32], 
+        "rho_hidden": [64,64,64,64], 
         "phi_hidden": [8], #
         "eta_hidden": [8],
         "phi_output": 4,
@@ -66,16 +67,16 @@ def train_and_evaluate():
     print("Training class initialization complete.")
     # slowing down training for alpha and energy parameter for smoother convergence towards true GS
     optimizer = torch.optim.Adam([
-    {
-        "params": [
-            p for name, p in trainer.named_parameters()
-            if name not in ["energy", "model.alpha"]
-        ],
-        "lr": lr,
-    },
-    {"params": [trainer.energy], "lr": lr_E},
-    {"params": [trainer.model.alpha], "lr": lr_alpha},
-])
+        {
+            "params": [
+                p for name, p in trainer.named_parameters()
+                if name not in ["energy", "model.alpha"]
+            ],
+            "lr": lr,
+        },
+        {"params": [trainer.energy], "lr": lr_E},
+        {"params": [trainer.model.alpha], "lr": lr_alpha},
+    ])
     # Set up optimizer and learning rate scheduler
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
     # train the model and get training results
@@ -103,6 +104,7 @@ def train_and_evaluate():
         "model_name": model_name,
         "model_config": json_config,
         "training_points": int(training_points),
+        "batch_size": int(batch_size),
         "width": float(width),
         "val_seed": int(val_seed),
         "val_points": int(val_points),
@@ -119,8 +121,6 @@ def train_and_evaluate():
 
         "learning_rate": float(lr),
         "final_learning_rate": float(optimizer.param_groups[0]["lr"]),
-
-       
         "energy_mean_val_final": float(trainer.energy_val_mean[-1]),
         "energy_var_val_final": float(trainer.energy_val_var[-1]),
         "energy_mean_val_history": list(np.array(trainer.energy_val_mean).tolist()),
@@ -148,4 +148,7 @@ plot_loss_curves(model_name) # for plotting the loss during training
 samples=1000000
 samples=int(1000000-samples//10*2.0)# to check VMC energy (samples=amount of positions)
 
-E_mean, E_std= energy_vmc_and_plot(model_name, N=N, d=dim, samples=samples, beta=beta, a=a, omega_z=omega_z, omega_ho=omega_ho, full=False) # for evaluating the energy of the trained model
+E_mean, E_std, E_L= energy_vmc_and_plot(model_name, N=N, d=dim, samples=samples, beta=beta, a=a, omega_z=omega_z, omega_ho=omega_ho, full=False) # for evaluating the energy of the trained model
+block_variance, block_error, B_list, n_list = blocking_error(E_L.detach().cpu().numpy().flatten()) # for performing blocking analysis on the energies obtained from the trained model
+
+plot_blocking(B_list, block_error, beta=beta, name_of_model=model_name, N=N, a=a) # for plotting the blocking analysis results

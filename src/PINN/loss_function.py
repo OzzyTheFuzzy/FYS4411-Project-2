@@ -29,13 +29,32 @@ class LossFunctions(nn.Module):
         else:
             E_init = self.model.N * (1 + beta_val / 2) 
         
+
         #if self.model.a > 0.0:
         #    self.register_buffer("energy", torch.tensor(E_init, device=self.device))
         
         self.energy = nn.Parameter(torch.tensor(E_init, device=self.device))
         self.mse    = nn.MSELoss()
 
+    def initialize_energy_with_coulomb(self, positions):
+        beta_val = float(self.model.beta)
 
+        if beta_val == 1.0:
+            E_init = self.model.N * self.model.dim / 2
+        else:
+            E_init = self.model.N * (1 + beta_val / 2)
+
+        if self.model.N >= 2 and self.model.a > 0.0:
+            with torch.no_grad():
+                V_coulomb_mean = self.coulomb(positions).mean()
+            E_init = E_init + V_coulomb_mean.item()
+
+        self.energy.data = torch.tensor(
+            E_init,
+            device=self.device,
+            dtype=self.energy.dtype
+        )
+        
     def PDE_loss(self, positions):
         """
         # Change the energy!
@@ -119,7 +138,7 @@ class LossFunctions(nn.Module):
         pair_dist = r_ij_abs[:, iu[0], iu[1]]  
   
         eps=1e-8
-        V_coulomb = torch.sum(1.0 / (pair_dist + eps), dim=1, keepdim=True)  # shape (B, 1)
+        V_coulomb = self.model.a * torch.sum(1.0 / (pair_dist + eps), dim=1, keepdim=True)  # shape (B, 1)
    
         return V_coulomb
     
