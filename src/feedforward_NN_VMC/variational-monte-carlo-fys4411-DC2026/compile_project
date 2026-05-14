@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Create build-directory
+mkdir build
+
+# Move into the build-directory
+cd build
+
+# Run CMake to create a Makefile
+cmake ../
+
+# Generate documentation using Doxygen
+make doc > /dev/null
+
+# Make the Makefile using two threads
+make -j2
+
+# Move the executable to the top-directory
+mv vmc ..
