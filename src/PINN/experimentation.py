@@ -18,10 +18,10 @@ beta     =  2.82843   #
 omega_z  = beta       # Frequency of the harmonic trap in the z-direction. Set equal to beta for antisotropic case, and to 1 for isotropic case
 
 #  Training parameters
-training_points = 10000
+training_points = 50000
 seed            = 17
 epochs      = 100
-batch_size  = 500
+batch_size  = 1000
 num_batches = training_points // batch_size
 val_points  = 10000
 val_width   = width # width of the Gaussian distribution for sampling validation collocation points
@@ -45,7 +45,7 @@ def train_and_evaluate():
     model_config = {
         "dim": dim,
         "N": N,
-        "rho_hidden": [64,64,64,64], 
+        "rho_hidden": [32,32,32,32], 
         "phi_hidden": [8], #
         "eta_hidden": [8],
         "phi_output": 4,
