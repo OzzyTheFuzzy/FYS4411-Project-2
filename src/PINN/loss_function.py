@@ -54,7 +54,25 @@ class LossFunctions(nn.Module):
             device=self.device,
             dtype=self.energy.dtype
         )
-        
+    def initialize_energy_with_VMC(self):
+
+        if self.model.N ==2:
+            E_VMC = 2.8341
+
+            self.energy.data = torch.tensor(
+            E_VMC,
+            device=self.device,
+            dtype=self.energy.dtype)
+
+        if self.model.N==10:
+            E_VMC = 24.405  # obtained from VMC sampling with the initial model, can be adjusted based on the specific system and model initialization
+            
+            self.energy.data = torch.tensor(
+                E_VMC,
+                device=self.device,
+                dtype=self.energy.dtype
+            )
+
     def PDE_loss(self, positions):
         """
         # Change the energy!

@@ -17,21 +17,22 @@ omega_ho = 1.0        # Frequency of the harmonic trap in the x and y directions
 beta     =  2.82843   # 
 omega_z  = beta       # Frequency of the harmonic trap in the z-direction. Set equal to beta for antisotropic case, and to 1 for isotropic case
 
+
 #  Training parameters
-training_points = 50000
+training_points = 5000
 seed            = 17
-epochs      = 100
+epochs      = 600
 batch_size  = 1000
 num_batches = training_points // batch_size
-val_points  = 10000
+val_points  = 5000
 val_width   = width # width of the Gaussian distribution for sampling validation collocation points
 val_seed    = 42 # random seed for sampling validation collocation points
 lr          = 1e-3 # learning rate for optimizer. Will be tuned during training by scheduler for smoother convergence
 lr_E        = 1e-5 # learning rate for energy parameter, set lower than lr for smoother convergence towards true GS energy
 lr_alpha    = 1e-6 # learning rate for alpha parameter, set lower than
-trainable_alpha = True # whether to train the energy parameter alpha or keep it fixed during training
-
-model_name  = f"{N}N_beta{beta}_lr{lr}_a{a}_64_tp{training_points:.2e}" # name for saving model and logs
+trainable_alpha = False # whether to train the energy parameter alpha or keep it fixed during training
+coulomb_init    = False# whether to initialize the energy parameter with the mean Coulomb energy of the initial validation positions, or to initialize it without considering Coulomb interactions
+model_name      = f"{N}N_beta{beta}_lr{lr}_a{a}_32_tp{training_points:.2e}" # name for saving model and logs
 
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -45,9 +46,9 @@ def train_and_evaluate():
     model_config = {
         "dim": dim,
         "N": N,
-        "rho_hidden": [32,32,32,32], 
-        "phi_hidden": [8], #
-        "eta_hidden": [8],
+        "rho_hidden": [32], 
+        "phi_hidden": [8, 8], #
+        "eta_hidden": [8, 8], #
         "phi_output": 4,
         "eta_output": 4,
         "activation_function": nn.GELU(),
@@ -78,7 +79,7 @@ def train_and_evaluate():
         {"params": [trainer.model.alpha], "lr": lr_alpha},
     ])
     # Set up optimizer and learning rate scheduler
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.995)
     # train the model and get training results
     loss, epoch_array, val_loss, epochs_val, best_model_state = trainer.training_cycle_SE(
             N_epochs=epochs,
@@ -89,7 +90,8 @@ def train_and_evaluate():
             optimizer=optimizer,
             scheduler=scheduler,
             num_batches=num_batches,
-            use_scheduler=True
+            use_scheduler=True,
+            coulomb_init=coulomb_init
         )
     print("Training complete.")
     # Save model weights
@@ -145,8 +147,8 @@ train_and_evaluate() # uncomment for training
 plot_loss_curves(model_name) # for plotting the loss during training
 
 # vmc samples from .dat file
-samples=1000000
-samples=int(1000000-samples//10*2.0)# to check VMC energy (samples=amount of positions)
+samples = 1000000
+samples = int(1000000-samples//10*2.0)# to check VMC energy (samples=amount of positions)
 
 E_mean, E_std, E_L= energy_vmc_and_plot(model_name, N=N, d=dim, samples=samples, beta=beta, a=a, omega_z=omega_z, omega_ho=omega_ho, full=False) # for evaluating the energy of the trained model
 block_variance, block_error, B_list, n_list = blocking_error(E_L.detach().cpu().numpy().flatten()) # for performing blocking analysis on the energies obtained from the trained model
