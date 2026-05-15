@@ -117,13 +117,15 @@ void EnergySampler::logOutput(const std::vector<double>& params, std::ofstream& 
         << std::endl;
 }
 
-void EnergySampler::logOutput(std::ofstream& outs) {
+void EnergySampler::logOutput(std::ofstream& outs, std::vector<double> additional_log) {
     const unsigned int prec = 10, width = 19;
     outs << std::scientific << std::setprecision(prec)
         << std::setw(width) << m_energy << ","
         << std::setw(width) << m_variance << ","
-        << std::setw(width) << m_error << ","
-        << std::setw(width) << m_elapsedTime.count() << ","
+        << std::setw(width) << m_error << ",";
+    for (int i = 0; i < (int)additional_log.size(); i++)
+        outs << std::setw(width) << additional_log[i] << ",";
+    outs << std::setw(width) << m_elapsedTime.count() << ","
         << std::setw(width) << ((double)m_numberOfAcceptedSteps) / ((double)m_numberOfMetropolisSteps)
         << std::endl;
 }

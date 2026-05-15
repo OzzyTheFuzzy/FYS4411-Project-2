@@ -30,7 +30,12 @@ MCEngine::MCEngine(
 , m_waveFunctionFactory(std::move(waveFunctionFactory))
 , m_solverFactory(std::move(solverFactory))
 , m_seed(seed) {
-    m_rep_a = m_hamiltonianFactory()->getRepulsiveFactor();
+    if (m_hamiltonianFactory()->has_hardcore()) {
+        m_rep_a = m_hamiltonianFactory()->getRepulsiveFactor();
+    }
+    else {
+        m_rep_a = 0;
+    }
 }
 
 std::unique_ptr<EnergySampler> MCEngine::run(

@@ -24,7 +24,7 @@ public:
     void printOutputToTerminal(class System& system);
     void printOutputToFile(class System& system, std::ofstream& outs);
     void logOutput(const std::vector<double>& params, std::ofstream& outs);
-    void logOutput(std::ofstream& outs);
+    void logOutput(std::ofstream& outs, std::vector<double> additional_log = {});
     void computeAverages();
     double getEnergy() { return m_energy; }
     double getError() { return m_error; }

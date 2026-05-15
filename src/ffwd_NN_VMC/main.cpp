@@ -16,6 +16,7 @@
 #include "WaveFunctions/nn_envelope.h"
 #include "Hamiltonians/harmonicoscillator.h"
 #include "Hamiltonians/repulsiveho.h"
+#include "Hamiltonians/coulombho.h"
 #include "InitialStates/initialstate.h"
 #include "Solvers/metropolis.h"
 #include "Solvers/metropolishastings.h"
@@ -37,16 +38,16 @@ using SolverFactory = function<unique_ptr<MonteCarlo>(unique_ptr<Random>)>;
 
 int main(int argc, char* argv[]) {
     // --- Parameters ---
-    string hamiltonianType = "RepulsiveHO";  // HarmonicOscillator or RepulsiveHO
+    string hamiltonianType = "CoulombHO";  // HarmonicOscillator or RepulsiveHO or CoulombHO
     string waveFunctionType = "EllipticGaussian"; // SimpleGaussian or EllipticGaussian or RepEllipticGaussian (this last one is designed only for infinite repulsion strength)
     string solverType = "MetropolisHastings";         // Metropolis or MetropolisHastings
     bool preferAnalytic = false;
     bool useCache = false;
-    unsigned int numberOfDimensions = 3;
+    unsigned int numberOfDimensions = 2;
     unsigned int numberOfParticles = 2;
-    unsigned int numberOfMetropolisSteps = 5e3;
+    unsigned int numberOfMetropolisSteps = 10e3;
     unsigned int numberOfEquilibrationSteps = 1e4;
-    unsigned int finalMClog2steps = log2(1e7);
+    unsigned int finalMClog2steps = log2(1e5);
     unsigned int onebodyDensitySteps = 1e7;
     double omega = 1.0;
     double omega_z = 2.8243;
@@ -58,14 +59,14 @@ int main(int argc, char* argv[]) {
     unsigned int onebodyDensity_nBins = 50;
     double BFGS_tol = 1e-5;     // NLopt's xtol_rel relative tolerance criterion for optimization
     // Next ones are parameters relevant for NNs
-    int Nhid = 10;
+    int Nhid = 4;
     double helpDecay = 0.4; // typically 0 < helpDecay <= 0.5
-    double Adam_ktol = 0.9;
+    double Adam_ktol = 0.99;
     const double lr = 5e-2;     // 5e-2 looked good
-    // const int nPretrainSteps = 5000;   // maximize K
-    const int nPretrainSteps = 1000;   // maximize K
-    const int nEnergySteps = 40000;  // minimize E
-    const double strengthRate = 1e12;   // hardcore potential strength increase per step
+    const int nPretrainSteps = 200;   // maximize K
+    const int nEnergySteps = 300;  // minimize E
+    const int nAdiabSteps = 100;  // adiabatic interaction addition
+    const double maxStrength = 1;   // maximum coulomb potential strength
 
     // int seed = 0;    // if seed == 0, seed is chosen randomly at each RNG construction
     int seed = chrono::system_clock::now().time_since_epoch().count();
@@ -80,7 +81,7 @@ int main(int argc, char* argv[]) {
     if (argc > 1) {
         for (int i = 1; i < argc; i++) {
             int temp = atoi(argv[i]);
-            if (0 < temp && temp <= toggles.size()) {
+            if (0 < temp && temp <= (int)toggles.size()) {
                 toggles[temp - 1] = true;
             }
         }
@@ -131,10 +132,15 @@ int main(int argc, char* argv[]) {
 
     // --- Setup Factories ---
     HamiltonianFactory hFac = [=]() -> unique_ptr<Hamiltonian> {
-        if (hamiltonianType == "HarmonicOscillator")
+        if (hamiltonianType == "HarmonicOscillator") {
             return make_unique<HarmonicOscillator>(omega);
-        else // default to Repulsive
+        }
+        else if (hamiltonianType == "CoulombHO") {
+            return make_unique<CoulombHO>(omega, omega_z, maxStrength);
+        }
+        else { // default to Repulsive
             return make_unique<RepulsiveHO>(omega, omega_z, repulsive_a_factor, repulsive_strength);
+        }
         };
     WaveFunctionFactory wfFac = [=](const vector<double>& p) -> unique_ptr<WaveFunction> {
         if (waveFunctionType == "SimpleGaussian")
@@ -181,6 +187,54 @@ int main(int argc, char* argv[]) {
 
         watch_start = chrono::high_resolution_clock::now();
         vector<double> optimalParams = optimizer.optimize(initialParams);
+        watch_end = chrono::high_resolution_clock::now();
+        elapsedTime = watch_end - watch_start;
+
+        cout << "Optimal parameters: " << setprecision(9);
+        globalLog << "Optimal parameters: " << setprecision(9);
+        for (unsigned int i = 0; i < optimalParams.size(); i++) {
+            cout << optimalParams[i] << ", \t";
+            globalLog << optimalParams[i] << ", \t";
+        }
+        cout << "\nVMC Optimization done (in " << elapsedTime.count() << " s).\n\n";
+        globalLog << "\nVMC Optimization done (in " << elapsedTime.count() << " s).\n\n";
+        logfile.close(); outfile.close(); paramsfile.close();
+    }
+
+    if (toggles[3]) {
+        // --- 4: Neural-Network ---
+        globalLog << "Initial parameters for psi_train: " << setprecision(9);
+        for (unsigned int i = 0; i < initialParams.size(); i++) {
+            globalLog << initialParams[i] << ", \t";
+        }
+        globalLog << endl;
+
+        ofstream logfile("./iofiles/logNN.csv");
+        ofstream outfile("./iofiles/details_results.csv");
+        ofstream paramsfile("./iofiles/params.dat");
+        VMCOptimizer_NN optimizer(
+            numberOfDimensions,
+            numberOfParticles,
+            numberOfEquilibrationSteps,
+            timeStep,
+            hFac(),
+            solverFac,
+            seed,
+            Nhid,
+            helpDecay,
+            numberOfEquilibrationSteps,
+            numberOfMetropolisSteps,
+            nPretrainSteps,
+            nEnergySteps,
+            nAdiabSteps,
+            maxStrength,
+            lr,
+            Adam_ktol,
+            &logfile, &outfile, &paramsfile
+        );
+
+        watch_start = chrono::high_resolution_clock::now();
+        vector<double> optimalParams = optimizer.optimize(wfFac(initialParams));
         watch_end = chrono::high_resolution_clock::now();
         elapsedTime = watch_end - watch_start;
 
@@ -247,52 +301,7 @@ int main(int argc, char* argv[]) {
         densityfile.close();
     }
 
-    if (toggles[3]) {
-        // --- 4: Neural-Network ---
-        globalLog << "Initial parameters for psi_train: " << setprecision(9);
-        for (unsigned int i = 0; i < initialParams.size(); i++) {
-            globalLog << initialParams[i] << ", \t";
-        }
-        globalLog << endl;
 
-        ofstream logfile("./iofiles/logNN.csv");
-        ofstream outfile("./iofiles/details_results.csv");
-        ofstream paramsfile("./iofiles/params.dat");
-        VMCOptimizer_NN optimizer(
-            numberOfDimensions,
-            numberOfParticles,
-            numberOfEquilibrationSteps,
-            timeStep,
-            std::make_unique<RepulsiveHO>(omega, omega_z, repulsive_a_factor),
-            solverFac,
-            seed,
-            Nhid,
-            helpDecay,
-            numberOfEquilibrationSteps,
-            numberOfMetropolisSteps,
-            nPretrainSteps,
-            nEnergySteps,
-            strengthRate,
-            lr,
-            Adam_ktol,
-            &logfile, &outfile, &paramsfile
-        );
-
-        watch_start = chrono::high_resolution_clock::now();
-        vector<double> optimalParams = optimizer.optimize(wfFac(initialParams));
-        watch_end = chrono::high_resolution_clock::now();
-        elapsedTime = watch_end - watch_start;
-
-        cout << "Optimal parameters: " << setprecision(9);
-        globalLog << "Optimal parameters: " << setprecision(9);
-        for (unsigned int i = 0; i < optimalParams.size(); i++) {
-            cout << optimalParams[i] << ", \t";
-            globalLog << optimalParams[i] << ", \t";
-        }
-        cout << "\nVMC Optimization done (in " << elapsedTime.count() << " s).\n\n";
-        globalLog << "\nVMC Optimization done (in " << elapsedTime.count() << " s).\n\n";
-        logfile.close(); outfile.close(); paramsfile.close();
-    }
     globalLog << "=========================================\n";
     globalLog.close();
 

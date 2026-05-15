@@ -21,7 +21,7 @@ VMCOptimizer_NN::VMCOptimizer_NN(
     unsigned int numberOfParticles,
     unsigned int numberOfEquilibrationSteps,
     double timeStep,
-    std::unique_ptr<RepulsiveHO> hamiltonian,
+    std::unique_ptr<Hamiltonian> hamiltonian,
     SolverFactory solverFactory,
     int seed,
     int Nhid,
@@ -30,7 +30,8 @@ VMCOptimizer_NN::VMCOptimizer_NN(
     int nSamples,
     int nPretrainSteps,
     int nEnergySteps,
-    double strengthRate,
+    int nAdiabSteps,
+    double maxStrength,
     double lr,
     double Adam_ktol,
     std::ofstream* logfile,
@@ -49,7 +50,8 @@ m_optEquil(optEquil),
 m_nSamples(nSamples),
 m_nPretrainSteps(nPretrainSteps),
 m_nEnergySteps(nEnergySteps),
-m_strengthRate(strengthRate),
+m_nAdiabSteps(nAdiabSteps),
+m_maxStrength(maxStrength),
 m_lr(lr),
 m_Adam_ktol(Adam_ktol),
 m_logfile(logfile),
@@ -72,7 +74,7 @@ std::vector<double> VMCOptimizer_NN::optimize(std::unique_ptr<WaveFunction> wf_t
         nnptr->parameters(),
         torch::optim::AdamOptions(m_lr).betas({ 0.9, 0.999 }).eps(1e-6)
     );
-    m_hamiltonian->set_hardcore_strength(0);
+    m_hamiltonian->set_percStrength(0);
     auto system = std::make_unique<System>(
         std::move(m_hamiltonian),
         std::move(wf_train)
@@ -135,18 +137,25 @@ std::vector<double> VMCOptimizer_NN::optimize(std::unique_ptr<WaveFunction> wf_t
         *m_logfile << "\n# TRAINING\n#";
         const unsigned int width = 20;
         *m_logfile << std::setw(width-1) << "energy," << std::setw(width) << "variance,"
-            << std::setw(width) << "error," << std::setw(width) << "elapsed time,"
-            << std::setw(width) << "acceptance ratio " << std::endl;
+            << std::setw(width) << "error," << std::setw(width) << "Hint strength,"
+            << std::setw(width) << "elapsed time," << std::setw(width) << "acceptance ratio "
+            << std::endl;
     }
     std::cout << "Running Adam optimization with interactions...\n";
     *m_outfile << "# Running Adam optimization with interactions...\n";
     system->runEquilibrationSteps(m_timeStep, m_optEquil);
     for (int step = 0; step < m_nEnergySteps; step++) {
-        std::cout << "\rTrain step #" << step << std::flush;
-        system->getHamiltonian().set_hardcore_strength(step * m_strengthRate);
+        // double percStrength = step / (double)m_nEnergySteps;
+        double percStrength = (double) step / (double) m_nAdiabSteps;
+        if (percStrength > 1) percStrength = 1;
+        system->getHamiltonian().set_percStrength(percStrength);
+        std::cout << "\rTrain step #" << std::setw(log10(m_nEnergySteps) + 1) << step
+            << "   strength = " << std::scientific
+            << system->getHamiltonian().get_interaction_strength() << std::flush;
+
         system->runEquilibrationSteps(m_timeStep, 50);
         auto sampler = system->runMetropolisSteps(m_timeStep, m_nSamples);
-        if (m_logfile) sampler->logOutput(*m_logfile);
+        if (m_logfile) sampler->logOutput(*m_logfile, {system->getHamiltonian().get_interaction_strength()});
         auto dEdW = sampler->get_dEdW();
         optimizer.zero_grad();
         nnptr->setGrads(dEdW);
@@ -155,6 +164,9 @@ std::vector<double> VMCOptimizer_NN::optimize(std::unique_ptr<WaveFunction> wf_t
     }
     std::cout << "\nTraining complete.\n";
 
+    if (m_paramsfile) {
+        for (auto p : nnptr->getParams()) *m_paramsfile << p << std::endl;
+    }
     return nnptr->getParams();
 }
 

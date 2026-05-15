@@ -8,7 +8,7 @@
 #include "../particle.h"
 
 NN_envelope::NN_envelope(int N, int D, int Nin, int Nhid, double helpDecay)
-    : WaveFunction(Nhid * (2 + Nin), {}), m_N(N), m_D(D), m_Nin(Nin), m_net(Nin, Nhid, helpDecay) {}
+    : WaveFunction(Nhid* (2 + Nin), {}), m_N(N), m_D(D), m_Nin(Nin), m_net(Nin, Nhid, helpDecay) {}
 
 NN_envelope::NN_envelope(int N, int D, int Nin, int Nhid, double helpDecay, const std::vector<double>& params)
     : WaveFunction(Nhid* (2 + Nin), params), m_N(N), m_D(D), m_Nin(Nin), m_net(Nin, Nhid, helpDecay, params) {}
@@ -122,4 +122,9 @@ std::vector<double> NN_envelope::computeLogParDer_vect(
     }
 
     return OW;
+}
+
+const std::vector<double>& NN_envelope::getParameters() {
+    m_parameters = m_net.getParams();
+    return m_parameters;
 }

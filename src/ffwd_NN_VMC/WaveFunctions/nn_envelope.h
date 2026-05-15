@@ -10,6 +10,8 @@ public:
     NN_envelope(int N, int D, int Nin, int Nhid, double helpDecay);
     NN_envelope(int N, int D, int Nin, int Nhid, double helpDecay, const std::vector<double>& params);
 
+    const std::vector<double>& getParameters() override;
+
     double evaluate(std::vector<std::unique_ptr<class Particle>>& particles) override;
     torch::Tensor encode(std::vector<std::unique_ptr<class Particle>>& particles);
     // std::vector<double> QFac(std::vector<std::unique_ptr<class Particle>>& particles);

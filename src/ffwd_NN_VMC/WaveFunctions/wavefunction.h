@@ -2,6 +2,7 @@
 #include <memory>
 #include <vector>
 #include <cmath>
+#include <stdexcept>
 
 /**
  * @brief Abstract base class for all trial wave functions.
@@ -24,7 +25,7 @@ public:
      * @brief Gets the current values of the variational parameters.
      * @return Constant reference to the parameters vector.
      */
-    const std::vector<double>& getParameters() { return m_parameters; }
+    virtual const std::vector<double>& getParameters() { return m_parameters; }
 
     /**
      * @brief Defines the lower bounds for the variational parameters during optimization.
@@ -62,8 +63,11 @@ public:
      * @param particle_idx Index of the particle being evaluated.
      * @return The logarithmic contribution of the specified particle.
      */
-    virtual double computeParticleLn(std::vector<std::unique_ptr<Particle>>& particles,
-        unsigned int particle_idx) { return 0; }
+    virtual double computeParticleLn(std::vector<std::unique_ptr<Particle>>&,
+        unsigned int) {
+        throw std::logic_error("computeParticleLn called inside base class WaveFunction");
+        return 0;
+    }
 
     /**
      * @brief Computes the Laplacian (sum of second derivatives) of the wave function.
@@ -110,7 +114,8 @@ public:
     double computeNumericalParamDerivativeLn(std::vector<std::unique_ptr<class Particle>>& particles, unsigned int param_idx);
     std::vector<double> computeNumericalQuantumForce(std::vector<std::unique_ptr<class Particle>>& particles, unsigned int particle_idx);
 
-    virtual std::vector<double> computeLogParDer(std::vector<std::unique_ptr<class Particle>>& particles) {
+    virtual std::vector<double> computeLogParDer(std::vector<std::unique_ptr<class Particle>>&) {
+        throw std::logic_error("computeLogParDer called inside base class WaveFunction");
         return std::vector<double>();
     }
 

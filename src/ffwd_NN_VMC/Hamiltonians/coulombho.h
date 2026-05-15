@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <vector>
+#include <limits>
 
 #include "hamiltonian.h"
 
@@ -10,35 +11,35 @@
  * (the Jastrow factor physics) and allows for asymmetrical trapping frequencies
  * (omega_z != omega_perp)
  */
-class RepulsiveHO : public Hamiltonian {
+class CoulombHO : public Hamiltonian {
 public:
     /**
      * @brief Constructs a spherical trap with default hard-core repulsion.
      */
-    RepulsiveHO(double omega);
+    CoulombHO(double omega);
 
     /**
      * @brief Constructs an elliptical trap with default hard-core repulsion.
      */
-    RepulsiveHO(double omega, double omega_z);
+    CoulombHO(double omega, double omega_z);
 
     /**
      * @brief Constructs an elliptical trap specifying the hard-core radius.
      * @param omega Trap frequency in the xy-plane.
      * @param omega_z Trap frequency along the z-axis.
-     * @param repulsive_a_factor The interaction diameter 'a' in standard units.
+     * @param maxStrength Coulomb interaction maxStrength.
      */
-    RepulsiveHO(double omega, double omega_z, double repulsive_a_factor);
+    CoulombHO(double omega, double omega_z, double maxStrength);
 
     /**
      * @brief Constructs an elliptical trap specifying the hard-core radius.
      * @param omega Trap frequency in the xy-plane.
      * @param omega_z Trap frequency along the z-axis.
-     * @param repulsive_a_factor The interaction diameter 'a' in standard units.
-     * @param hardcore_strength Maximum interaction strength.
+     * @param maxStrength Coulomb interaction maxStrength.
+     * @param percStrength Percentage of interaction strength.
      */
-    RepulsiveHO(double omega, double omega_z, double repulsive_a_factor,
-        double hardcore_strength);
+    CoulombHO(double omega, double omega_z, double maxStrength,
+        double percStrength);
 
     double computeLocalEnergy(
         class WaveFunction& waveFunction,
@@ -51,22 +52,16 @@ public:
         class WaveFunctionCache& cache
     ) override;
 
-    double getRepulsiveFactor() override { return m_rep_a; }
+    double get_interaction_strength() override;
 
-    double has_hardcore() override {
-        return true;
-    }
-
-    double get_interaction_strength() override { return m_strength; }
-
-    void set_interaction_strength(double strength) override {
-        m_strength = strength;
-    }
+    void set_percStrength(double percStrength) override;
 
 private:
     double m_omega;
     double m_omega_z;
-    double m_rep_a;     ///< Scaled hard-core diameter
-    double m_strength = std::numeric_limits<double>::infinity();
+    double m_maxStrength = 1;
+    double m_percStrength = 1;
+
+    const double c_eps = 1e-12; // against numerical errors
 };
 

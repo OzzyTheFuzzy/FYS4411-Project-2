@@ -6,7 +6,7 @@
 #include "mcengine.h"
 #include "Samplers/energysampler.h"
 #include "Samplers/NNsampler.h"
-#include "Hamiltonians/repulsiveho.h"
+#include "Hamiltonians/hamiltonian.h"
 #include "WaveFunctions/ellipticgaussian.h"
 #include "WaveFunctions/repulsiveellipticgaussian.h"
 #include "WaveFunctions/nn_envelope.h"
@@ -23,7 +23,7 @@ public:
         unsigned int numberOfParticles,
         unsigned int numberOfEquilibrationSteps,
         double timeStep,
-        std::unique_ptr<class RepulsiveHO> hamiltonian,
+        std::unique_ptr<class Hamiltonian> hamiltonian,
         SolverFactory solverFactory,
         int seed,
         int Nhid,
@@ -32,7 +32,8 @@ public:
         int nSamples,
         int nPretrainSteps,
         int nEnergySteps,
-        double strengthRate,
+        int nAdiabSteps,
+        double maxStrength,
         double lr,
         double Adam_tol,
         std::ofstream* logfile = nullptr,
@@ -50,7 +51,7 @@ private:
     unsigned int m_numberOfParticles;
     unsigned int m_numberOfEquilibrationSteps;
     double m_timeStep;
-    std::unique_ptr<class RepulsiveHO> m_hamiltonian;
+    std::unique_ptr<class Hamiltonian> m_hamiltonian;
     SolverFactory m_solverFactory;
     int m_seed;
     int m_Nhid;
@@ -59,7 +60,8 @@ private:
     int m_nSamples;
     int m_nPretrainSteps;
     int m_nEnergySteps;
-    double m_strengthRate;
+    int m_nAdiabSteps;
+    double m_maxStrength;
     double m_lr;
     double m_Adam_ktol;
     std::ofstream* m_logfile;
