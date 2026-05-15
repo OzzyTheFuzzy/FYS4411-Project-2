@@ -8,7 +8,6 @@
 class RBMInteractingTrap : public Hamiltonian {
 public:
     RBMInteractingTrap(
-        double omega = 1.0,
         double gamma = 1.0,
         double interactionStrength = 1.0,
         double epsilon = 1e-12
@@ -20,7 +19,6 @@ public:
     ) override;
 
 private:
-    double m_omega = 1.0;
     double m_gamma = 1.0;
     double m_interactionStrength = 1.0;
     double m_epsilon = 1e-12;

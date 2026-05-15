@@ -3,7 +3,6 @@
 #include <cassert>
 
 #include "system.h"
-#include "sampler.h"
 #include "RBMsampler.h"
 #include "particle.h"
 #include "WaveFunctions/wavefunction.h"
@@ -38,41 +37,6 @@ unsigned int System::runEquilibrationSteps(
     }
 
     return acceptedSteps;
-}
-
-std::unique_ptr<class Sampler> System::runMetropolisSteps(
-        double stepLength,
-        unsigned int numberOfMetropolisSteps,
-        bool storeEnergyHistory,
-        bool storeDensityHist,
-        bool densityOnly,
-        unsigned int densityBins,
-        double densityZMax,
-        double densityRhoMax)
-{
-    auto sampler = std::make_unique<Sampler>(
-            m_numberOfParticles,
-            m_numberOfDimensions,
-            stepLength,
-            numberOfMetropolisSteps,
-            storeEnergyHistory,
-            storeDensityHist,
-            densityOnly,
-            densityBins,
-            densityZMax,
-            densityRhoMax);
-
-    for (unsigned int i = 0; i < numberOfMetropolisSteps; i++) {
-        // Do one Monte Carlo step
-        bool acceptedStep = m_solver->step(stepLength, *m_waveFunction, m_particles);
-
-        // Sample observables
-        sampler->sample(acceptedStep, this);
-    }
-
-    sampler->computeAverages();
-
-    return sampler;
 }
 
 std::unique_ptr<class RBMSampler> System::runRBMMetropolisSteps(

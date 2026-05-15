@@ -16,7 +16,6 @@ enum class EvalType { Analytic, Numerical };
 // Result returned by one VMC run
 struct RunResult {
     double energy = 0.0;
-    double gradient = 0.0;   // dE/dalpha from the VMC gradient estimator
     std::vector<std::vector<double>> gradienta;
     std::vector<double> gradientb;
     std::vector<std::vector<std::vector<double>>> gradientw;
@@ -25,11 +24,6 @@ struct RunResult {
 
     //need to acumulate energy values to compute the statistical error properly.
     std::vector<double> energyHistory;
-
-    std::vector<double> densityZ;
-    std::vector<double> densityRho;
-    std::vector<double> densityZCenters;
-    std::vector<double> densityRhoCenters;
 };
 
 // Result returned by several independent replicas run in parallel
@@ -52,8 +46,6 @@ RunResult runVMC(
     unsigned int D,
     unsigned int nMetropolis,
     unsigned int nEquil,
-    double omega,
-    double alpha,
     double stepParam,            // bf: stepLength, is: dt
     Mode mode,
     int seed,
@@ -63,15 +55,7 @@ RunResult runVMC(
     const std::vector<std::vector<double>>& a = {},
     const std::vector<double>& b = {},
     const std::vector<std::vector<std::vector<double>>>& W = {},
-    double beta = 1.0,
-    double gamma = 1.0,
-    double hardCoreA = 0.0,
-    bool densityOnly = false,
-    bool storeDensityHist = false,
-    bool useNoJastrow = false,
-    unsigned int densityBins = 200,
-    double densityZMax = 4.0,
-    double densityRhoMax = 4.0
+    double gamma = 1.0
 );
 
 ParallelRunResult runVMCReplicasParallel(
@@ -79,8 +63,6 @@ ParallelRunResult runVMCReplicasParallel(
     unsigned int D,
     unsigned int nMetropolis,
     unsigned int nEquil,
-    double omega,
-    double alpha,
     double stepParam,
     Mode mode,
     int baseSeed,
@@ -91,9 +73,7 @@ ParallelRunResult runVMCReplicasParallel(
     const std::vector<std::vector<double>>& a = {},
     const std::vector<double>& b = {},
     const std::vector<std::vector<std::vector<double>>>& W = {},
-    double beta = 1.0,
-    double gamma = 1.0,
-    double hardCoreA = 0.0
+    double gamma = 1.0
 );
 
 std::vector<std::vector<double>> matr_mult(std::vector<std::vector<double>>& a, std::vector<std::vector<double>>& b);

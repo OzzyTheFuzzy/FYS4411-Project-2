@@ -195,7 +195,7 @@ def main():
     ax.set_xlabel("Optimization step")
     ax.set_ylabel("Energy")
     ax.grid(True, alpha=0.3)
-    ax.legend(fontsize=9)
+    ax.legend(fontsize=11)
 
     fig.tight_layout()
 

@@ -9,17 +9,14 @@
 #include "../WaveFunctions/wavefunction.h"
 
 RBMInteractingTrap::RBMInteractingTrap(
-    double omega,
     double gamma,
     double interactionStrength,
     double epsilon
 )
 {
-    assert(omega > 0.0);
     assert(gamma > 0.0);
     assert(epsilon > 0.0);
 
-    m_omega = omega;
     m_gamma = gamma;
     m_interactionStrength = interactionStrength;
     m_epsilon = epsilon;
@@ -43,9 +40,9 @@ double RBMInteractingTrap::computeLocalEnergy(
 
     // Harmonic confinement:
     // For D = 2:
-    //   V_trap = 1/2 * omega^2 * (x^2 + gamma^2 y^2)
+    //   V_trap = 1/2 * (x^2 + gamma^2 y^2)
     // For D = 3:
-    //   V_trap = 1/2 * omega^2 * (x^2 + y^2 + gamma^2 z^2)
+    //   V_trap = 1/2 * (x^2 + y^2 + gamma^2 z^2)
     double trapPotential = 0.0;
     for (auto& p : particles) {
         const auto& r = p->getPosition();
@@ -99,7 +96,7 @@ double RBMInteractingTrap::computeTrapPotential(
         r2 += m_gamma * m_gamma * r[D - 1] * r[D - 1];
     }
 
-    return 0.5 * m_omega * m_omega * r2;
+    return 0.5 * r2;
 }
 
 double RBMInteractingTrap::computePairDistance(
