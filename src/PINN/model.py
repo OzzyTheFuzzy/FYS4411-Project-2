@@ -101,7 +101,8 @@ class SE_Model(nn.Module):
         activation_function=nn.GELU(),
         alpha=0.5,
         beta=1.0,
-        trainable_alpha=False
+        trainable_alpha=False,
+        trainable_energy=False
         
     ):
         super().__init__()
@@ -137,9 +138,10 @@ class SE_Model(nn.Module):
             self.alpha = nn.Parameter(torch.tensor(alpha, dtype=torch.float32))
         else:
             self.register_buffer("alpha", torch.tensor(alpha, dtype=torch.float32))
-
+        
         self.register_buffer("beta", torch.tensor(beta, dtype=torch.float32))
-
+        self.trainable_energy = trainable_energy
+        
     def jastrow_log(self, pair_dist):
         """
         Computes the log of the Jastrow factor for a batch of pairwise distances.

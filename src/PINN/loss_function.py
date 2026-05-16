@@ -30,10 +30,11 @@ class LossFunctions(nn.Module):
             E_init = self.model.N * (1 + beta_val / 2) 
         
 
-        #if self.model.a > 0.0:
-        #    self.register_buffer("energy", torch.tensor(E_init, device=self.device))
-        
-        self.energy = nn.Parameter(torch.tensor(E_init, device=self.device))
+        if self.model.trainable_energy:
+            self.energy = nn.Parameter(torch.tensor(E_init, device=self.device))
+        else:
+            self.register_buffer("energy", torch.tensor(E_init, device=self.device))
+
         self.mse    = nn.MSELoss()
 
     def initialize_energy_with_coulomb(self, positions):
@@ -56,7 +57,7 @@ class LossFunctions(nn.Module):
         )
     def initialize_energy_with_VMC(self):
 
-        if self.model.N ==2:
+        if self.model.N ==2 and self.model.beta!=1.0:
             E_VMC = 2.8341
 
             self.energy.data = torch.tensor(
@@ -64,7 +65,14 @@ class LossFunctions(nn.Module):
             device=self.device,
             dtype=self.energy.dtype)
 
-        if self.model.N==10:
+        if self.model.N==2 and self.model.beta==1.0 and self.model.a > 0.0 and self.model.dim==2:
+            E_VMC = 3.0
+            self.energy.data = torch.tensor(
+            E_VMC,
+            device=self.device,
+            dtype=self.energy.dtype)
+
+        if self.model.N==10 and self.model.dim==3 and self.model.a > 0.0 and self.model.beta!=1.0:
             E_VMC = 24.405  # obtained from VMC sampling with the initial model, can be adjusted based on the specific system and model initialization
             
             self.energy.data = torch.tensor(
@@ -177,7 +185,7 @@ class LossFunctions(nn.Module):
 
         E_K = -0.5 * (lap_logpsi + grad_sq) 
         
-        if self.model.N >= 2 and self.model.a > 0.0:
+        if self.model.N >1 and self.model.a > 0.0:
             V_coulomb = self.coulomb(positions)
         else:
             V_coulomb = torch.zeros_like(V)

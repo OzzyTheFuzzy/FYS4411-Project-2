@@ -18,7 +18,7 @@ def distance_and_distance_vec(r,eps=0.0):
 
     # Pairwise distances
     r_ij_abs = torch.linalg.norm(r_ij, dim=-1)   # (B, N, N)
-
+    
     return r_ij_abs, r_ij
 
 
@@ -199,8 +199,13 @@ class InitializeData:
 
         iu = torch.triu_indices(self.N, self.N, offset=1, device=candidates.device)
         rij = r_ij_abs[:, iu[0], iu[1]]  # (B, num_pairs)
-
-        return torch.all(rij > self.a, dim=1)
+        if self.dim == 1 or self.dim==2:
+             # in 1D we only care about the absolute distance between particles
+            eps=1e-2
+            return torch.all(rij > self.a + eps, dim=1)
+        
+        else:
+            return torch.all(rij > self.a, dim=1)
 
     def distance_and_distance_vecs(self, r):
         """

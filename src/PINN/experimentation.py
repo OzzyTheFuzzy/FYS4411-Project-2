@@ -9,29 +9,30 @@ from PINN_vs_analytical import *
 from blocking import blocking_error, plot_blocking
 
 # Configuration
-width = 0.70       # Width of the Gaussian distribution for sampling collocation points
+width = 0.7      # Width of the Gaussian distribution for sampling collocation points
 a     = 0.0043      # 0.0043  for interactions   Hard-core radius (set to 0 for no interactions)
-N     = 10         # Number of particles (dimensions)
-dim   = 3           # Dimensionality of the particles
+N     = 2         # Number of particles (dimensions)
+dim   = 3         # Dimensionality of the particles
 omega_ho = 1.0        # Frequency of the harmonic trap in the x and y directions
-beta     =  2.82843   # 
+beta     = 1.0   # 
 omega_z  = beta       # Frequency of the harmonic trap in the z-direction. Set equal to beta for antisotropic case, and to 1 for isotropic case
 
 
 #  Training parameters
-training_points = 5000
+training_points = 10000
 seed            = 17
-epochs      = 600
+epochs      = 200
 batch_size  = 1000
 num_batches = training_points // batch_size
-val_points  = 5000
+val_points  = 10000
 val_width   = width # width of the Gaussian distribution for sampling validation collocation points
 val_seed    = 42 # random seed for sampling validation collocation points
 lr          = 1e-3 # learning rate for optimizer. Will be tuned during training by scheduler for smoother convergence
-lr_E        = 1e-5 # learning rate for energy parameter, set lower than lr for smoother convergence towards true GS energy
+lr_E        = 1e-2 # learning rate for energy parameter, set lower than lr for smoother convergence towards true GS energy
 lr_alpha    = 1e-6 # learning rate for alpha parameter, set lower than
 trainable_alpha = False # whether to train the energy parameter alpha or keep it fixed during training
-coulomb_init    = False# whether to initialize the energy parameter with the mean Coulomb energy of the initial validation positions, or to initialize it without considering Coulomb interactions
+trainable_energy = False # whether to train the energy parameter or keep it fixed during training
+coulomb_init    = False # if we do not have VMC results for the given config, use coulomb initialization
 model_name      = f"{N}N_beta{beta}_lr{lr}_a{a}_32_tp{training_points:.2e}" # name for saving model and logs
 
 def train_and_evaluate():
@@ -46,9 +47,9 @@ def train_and_evaluate():
     model_config = {
         "dim": dim,
         "N": N,
-        "rho_hidden": [32], 
-        "phi_hidden": [8, 8], #
-        "eta_hidden": [8, 8], #
+        "rho_hidden": [32,32,32,32], 
+        "phi_hidden": [2], #
+        "eta_hidden": [2], #
         "phi_output": 4,
         "eta_output": 4,
         "activation_function": nn.GELU(),
@@ -57,7 +58,8 @@ def train_and_evaluate():
         "trainable_alpha": trainable_alpha,
         "a": a,
         "omega_z": omega_z,
-        "omega_ho": omega_ho
+        "omega_ho": omega_ho,
+        "trainable_energy": trainable_energy
     }
     # Model initialization, with optimizer and scheduler
     model = SE_Model(**model_config)
