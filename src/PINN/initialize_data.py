@@ -201,7 +201,8 @@ class InitializeData:
         rij = r_ij_abs[:, iu[0], iu[1]]  # (B, num_pairs)
         if self.dim == 1 or self.dim==2:
              # in 1D we only care about the absolute distance between particles
-            eps=1e-2
+            eps=5e-2
+
             return torch.all(rij > self.a + eps, dim=1)
         
         else:

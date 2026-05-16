@@ -141,7 +141,7 @@ class SE_Model(nn.Module):
         
         self.register_buffer("beta", torch.tensor(beta, dtype=torch.float32))
         self.trainable_energy = trainable_energy
-        
+
     def jastrow_log(self, pair_dist):
         """
         Computes the log of the Jastrow factor for a batch of pairwise distances.
@@ -157,7 +157,17 @@ class SE_Model(nn.Module):
         log_j = torch.log1p(-ratio).sum(dim=1, keepdim=True)  # shape (B, 1)
         return log_j
 
+    def jastrow_log_smooth(self, pair_dist):
+        """
+        Smooth pairwise Jastrow factor:
+            J = sum_{i<j} c r_ij / (1 + beta_j r_ij)
+        """
+        c = self.a
+        beta_j = 1.0
 
+        jastrow = c * pair_dist / (1.0 + beta_j * pair_dist)
+        return jastrow.sum(dim=1, keepdim=True)
+    
     def forward(self, positions):
 
         """
@@ -217,7 +227,10 @@ class SE_Model(nn.Module):
 
         # Jastrow factor (only if a > 0 and we have pairs)
         if self.a > 0.0 and self.N >= 2:
-            jastrow = self.jastrow_log(pair_dist)   # shape (B, 1)
+            if self.dim == 1 or self.dim==2:
+                jastrow = self.jastrow_log_smooth(pair_dist)   # shape (B, 1)
+            else:
+                jastrow = self.jastrow_log(pair_dist)   # shape (B, 1)
         else:
             jastrow = 0.0
 
