@@ -12,8 +12,12 @@ std::vector<double> readVector(const std::string & filename) {
     std::ifstream file(filename);
     std::vector<double> vec;
     double temp;
-    while (file >> temp)
+    while (file >> temp) {
         vec.push_back(temp);
+        while (file.peek() == ',' || file.peek() == ' ' || file.peek() == '\t') {
+            file.ignore(); 
+        }
+    }
     file.close();
     return vec;
 }

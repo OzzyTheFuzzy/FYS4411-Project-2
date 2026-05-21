@@ -10,6 +10,7 @@
 NeuralNetwork::NeuralNetwork(int64_t Nin, int64_t Nhid, double helpDecay)
     : m_Nin(Nin), m_Nhid(Nhid), m_helpDecay(helpDecay) {
     auto opts = torch::TensorOptions().dtype(torch::kDouble);
+    m_actFun = [](const torch::Tensor& t) { return torch::tanh(t); };
     // Xavier/Glorot scaling: keeps variance of activations stable
     double scale1 = std::sqrt(2.0 / (Nin + Nhid)) * 0.01;
     double scale2 = std::sqrt(2.0 / Nhid) * 0.01;
@@ -19,8 +20,52 @@ NeuralNetwork::NeuralNetwork(int64_t Nin, int64_t Nhid, double helpDecay)
     m_W2 = register_parameter("W2", torch::randn(Nhid, opts) * scale2);
 }
 
+NeuralNetwork::NeuralNetwork(int64_t Nin, int64_t Nhid, double helpDecay, ActivationFunc actFun)
+    : m_Nin(Nin), m_Nhid(Nhid), m_helpDecay(helpDecay), m_actFun(actFun) {
+    auto opts = torch::TensorOptions().dtype(torch::kDouble);
+    // Xavier/Glorot scaling: keeps variance of activations stable
+    double scale1 = std::sqrt(2.0 / (Nin + Nhid)) * 0.01;
+    double scale2 = std::sqrt(2.0 / Nhid) * 0.01;
+    scale2 = scale1 = 1;
+    m_W1 = register_parameter("W1", torch::randn({ Nin, Nhid }, opts) * scale1);
+    m_b = register_parameter("b", torch::randn(Nhid, opts) * scale2);
+    m_W2 = register_parameter("W2", torch::randn(Nhid, opts) * scale2);
+}
+
+
 NeuralNetwork::NeuralNetwork(int64_t Nin, int64_t Nhid, double helpDecay, const std::vector<double>& params)
     : m_Nin(Nin), m_Nhid(Nhid), m_helpDecay(helpDecay) {
+    auto opts = torch::TensorOptions().dtype(torch::kDouble);
+    m_actFun = [](const torch::Tensor& t) { return torch::tanh(t); };
+    const int64_t nW1 = Nin * Nhid;
+    const int64_t nb = Nhid;
+    const int64_t nW2 = Nhid;
+
+    if ((int64_t)params.size() != nW1 + nb + nW2)
+        throw std::invalid_argument("params size " + std::to_string(params.size()) +
+            " does not match (Nin+2)*Nhid = " + std::to_string(nW1 + nb + nW2));
+
+    auto it = params.begin();
+
+    auto W1_tensor = torch::tensor(
+        std::vector<double>(it, it + nW1), opts).reshape({ Nin, Nhid }
+        );
+    it += nW1;
+    auto b_tensor = torch::tensor(
+        std::vector<double>(it, it + nb), opts
+    );
+    it += nb;
+    auto W2_tensor = torch::tensor(
+        std::vector<double>(it, it + nW2), opts
+    );
+
+    m_W1 = register_parameter("W1", W1_tensor);
+    m_b = register_parameter("b", b_tensor);
+    m_W2 = register_parameter("W2", W2_tensor);
+}
+
+NeuralNetwork::NeuralNetwork(int64_t Nin, int64_t Nhid, double helpDecay, ActivationFunc actFun, const std::vector<double>& params)
+    : m_Nin(Nin), m_Nhid(Nhid), m_helpDecay(helpDecay), m_actFun(actFun) {
     auto opts = torch::TensorOptions().dtype(torch::kDouble);
     const int64_t nW1 = Nin * Nhid;
     const int64_t nb = Nhid;
@@ -53,11 +98,13 @@ torch::Tensor NeuralNetwork::log_forward(torch::Tensor input) {
     // input is a [ 1 x Nin ] matrix
     torch::Tensor hidden = torch::addmm(m_b, input, m_W1);
 
-    hidden = torch::tanh(hidden);
+    // hidden = torch::gelu(hidden);
+    // hidden = torch::tanh(hidden);
+    hidden = m_actFun(hidden);
     torch::Tensor u_out = torch::mv(hidden, m_W2);
     u_out = torch::clamp(u_out, -20.0, 20.0);    // should be safe for double
 
-    // Gaussian Envelope (-0.2 * r^2)   !!!! THIS HAS TO BE CHANGED ACCORDING TO XI
+    // Gaussian Envelope (-m_helpDecay * r^2)   !!!! THIS HAS TO BE CHANGED ACCORDING TO XI
     torch::Tensor r_squared = input.pow(2).sum(-1, /*keepdim=*/true);
     torch::Tensor gauss_envelope = -m_helpDecay * r_squared;
 

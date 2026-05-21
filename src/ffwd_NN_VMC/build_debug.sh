@@ -7,13 +7,13 @@ mkdir -p build_debug
 cd build_debug
 
 # Run CMake (Defaults to Debug based on your CMakeLists.txt)
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=$PWD/../libtorch ../
 
 # Generate documentation using Doxygen
 make doc > /dev/null
 
 # Make the Makefile using eight threads
-make -j8
+make -j4
 
 # Move and rename the executable to the top-directory
 mv vmc ../vmc_debug

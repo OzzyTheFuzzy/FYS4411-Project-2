@@ -8,7 +8,9 @@
 class NN_envelope : public WaveFunction {
 public:
     NN_envelope(int N, int D, int Nin, int Nhid, double helpDecay);
+    NN_envelope(int N, int D, int Nin, int Nhid, double helpDecay, ActivationFunc actFunc);
     NN_envelope(int N, int D, int Nin, int Nhid, double helpDecay, const std::vector<double>& params);
+    NN_envelope(int N, int D, int Nin, int Nhid, double helpDecay, ActivationFunc actFunc, const std::vector<double>& params);
 
     const std::vector<double>& getParameters() override;
 

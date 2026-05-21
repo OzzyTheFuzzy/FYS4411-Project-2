@@ -57,7 +57,7 @@ bool MetropolisHastings::step(double timeStep, class WaveFunction& waveFunction,
     std::vector<std::unique_ptr<Particle>>& particles) {    
     // Perform the actual Metropolis-Hastings step
 
-    if (!m_cache)
+    if (m_useCache && !m_cache)
         m_cache = std::make_unique<WaveFunctionCache>(waveFunction, particles);
 
     double psi_old = m_useCache ? 0 : waveFunction.evaluate(particles);

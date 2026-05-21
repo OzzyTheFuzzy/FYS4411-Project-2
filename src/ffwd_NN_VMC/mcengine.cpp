@@ -54,7 +54,9 @@ std::unique_ptr<EnergySampler> MCEngine::run(
         std::move(solver),
         std::move(particles));
 
+    std::cout << "DEBUG: Ready for equilibration" << std::endl;
     system->runEquilibrationSteps(m_timeStep, m_numberOfEquilibrationSteps);
+    std::cout << "DEBUG: equilibration done" << std::endl;
     return system->runMetropolisSteps(m_timeStep, numberOfMetropolisSteps, energiesOut);
 }
 

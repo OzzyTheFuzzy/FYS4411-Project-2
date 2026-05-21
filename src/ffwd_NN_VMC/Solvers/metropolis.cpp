@@ -1,5 +1,6 @@
 #include <memory>
 #include <vector>
+#include <iostream>
 
 #include "common.h"
 #include "metropolis.h"
@@ -10,7 +11,9 @@
 using namespace CommonUtils;
 
 Metropolis::Metropolis(std::unique_ptr<class Random> rng, bool preferAnalytic, bool useCache)
-    : MonteCarlo(std::move(rng), preferAnalytic, useCache) {}
+    : MonteCarlo(std::move(rng), preferAnalytic, useCache) {
+    std::cout << "DEBUG: Created Metropolis" << std::endl;
+}
 
 
 bool Metropolis::step(

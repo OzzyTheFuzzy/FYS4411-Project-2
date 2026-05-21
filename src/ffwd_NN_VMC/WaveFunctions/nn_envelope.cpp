@@ -10,8 +10,14 @@
 NN_envelope::NN_envelope(int N, int D, int Nin, int Nhid, double helpDecay)
     : WaveFunction(Nhid* (2 + Nin), {}), m_N(N), m_D(D), m_Nin(Nin), m_net(Nin, Nhid, helpDecay) {}
 
+NN_envelope::NN_envelope(int N, int D, int Nin, int Nhid, double helpDecay, ActivationFunc actFunc)
+    : WaveFunction(Nhid* (2 + Nin), {}), m_N(N), m_D(D), m_Nin(Nin), m_net(Nin, Nhid, helpDecay, actFunc) {}
+
 NN_envelope::NN_envelope(int N, int D, int Nin, int Nhid, double helpDecay, const std::vector<double>& params)
     : WaveFunction(Nhid* (2 + Nin), params), m_N(N), m_D(D), m_Nin(Nin), m_net(Nin, Nhid, helpDecay, params) {}
+
+NN_envelope::NN_envelope(int N, int D, int Nin, int Nhid, double helpDecay, ActivationFunc actFunc, const std::vector<double>& params)
+    : WaveFunction(Nhid* (2 + Nin), params), m_N(N), m_D(D), m_Nin(Nin), m_net(Nin, Nhid, helpDecay, actFunc, params) {}
 
 torch::Tensor NN_envelope::encode(std::vector<std::unique_ptr<class Particle>>& particles) {
     std::vector<double> xi;
@@ -35,7 +41,7 @@ std::vector<double> NN_envelope::computeQuantumForce(
     unsigned int particle_idx
 ) {
     auto pos = encode(particles).squeeze(0)  // [Nin]
-                   .requires_grad_(true);
+        .requires_grad_(true);
 
     auto log_psi = m_net.log_forward(pos.unsqueeze(0)).squeeze(0);
 
