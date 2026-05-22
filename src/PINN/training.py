@@ -24,6 +24,8 @@ class Training(LossFunctions):
         self.alpha_array = [] # to store the value of alpha during training
         self.E_K_array = []
         self.V_array = []
+        self.V_coulomb_array = []
+        self.energy_val_std_array =[]
         """
         # Initialize adaptive weights for each loss component
         self.weights = {}
@@ -58,14 +60,14 @@ class Training(LossFunctions):
         pde_loss = self.PDE_loss(batch_points)
 
         # Backpropagation
-        optimizer.zero_grad()
+        optimizer.zero_grad(set_to_none=True)
         pde_loss.backward()
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1)
         optimizer.step()
 
         return pde_loss.item()
     
-    def training_cycle_SE(self, N_epochs, data_initializer, training_points, width, seed, optimizer, scheduler, num_batches, use_scheduler=False):
+    def training_cycle_SE(self, N_epochs, data_initializer, training_points, width, seed, optimizer, scheduler, num_batches, coulomb_init=False, use_scheduler=False):
         """
         Full training of the model which solves the SE
         After each batch it updates the model parameters and can update the learning rate.
@@ -80,6 +82,7 @@ class Training(LossFunctions):
             - optimizer (torch.optim.Optimizer): Optimizer instance.
             - scheduler (torch.optim.lr_scheduler): Learning rate scheduler.
             - num_batches (int): Number of batches per epoch.
+            - coulomb_init (bool): Whether to initialize the energy parameter with the mean Coulomb energy.
             - use_scheduler (bool): Whether to update the learning rate scheduler after each epoch.
 
         Returns:
@@ -95,6 +98,12 @@ class Training(LossFunctions):
         N_validation = self.val_points
         data_initializer_val = InitializeData(self.model.N, self.model.dim, device=self.device, hard_core_radius=self.model.a, omega_z=data_initializer.omega_z)
         val_positions = data_initializer_val.initialize_pde(N_validation, width=self.val_width, seed=self.val_seed)
+        
+        if self.model.a > 0.0: #finetunes the initial energy for coulomb interactions
+            if coulomb_init:
+                self.initialize_energy_with_coulomb(val_positions)
+            else: 
+                self.initialize_energy_with_data()
 
         # Lists to store training and validation results
         loss, epochs = [], []
@@ -125,6 +134,10 @@ class Training(LossFunctions):
                 pde_sum += pde_loss
                 batches += 1
 
+                del pde_batch
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
             avg_pde = pde_sum / batches # Average PDE loss for the epoch
 
@@ -132,51 +145,57 @@ class Training(LossFunctions):
             epochs.append(epoch)
 
             # check the variance of the energy save the best model state
+            # Monitor training and save important training data
+            # Validation + monitoring
             if epoch % 10 == 0:
                 self.model.eval()
 
-                pde_val_loss = self.PDE_loss(val_positions)
-                E_L, E_K, V = self.energy_model(val_positions)
-                print(E_L.mean(), E_K.mean(), V.mean())
-                E_L_var = E_L.var().item()
+                val_energy, E_K, V, V_coulomb = self.energy_model(val_positions)
+                
+                residual = val_energy - self.energy
+                pde_val_loss_value = torch.mean(residual**2).item()
+                 
+                E_K_mean = E_K.mean().item()
+                V_mean = V.mean().item()
+                V_coulomb_mean = V_coulomb.mean().item()
+                mean_energy = val_energy.mean().item()
+                E_L_var = val_energy.var().item()
+                E_L_std = val_energy.std().item()
 
-                val_loss.append(pde_val_loss.item())
+                val_loss.append(pde_val_loss_value)
                 epochs_val.append(epoch)
 
                 if E_L_var < best_E_L_var:
                     best_E_L_var = E_L_var
                     best_model_state = copy.deepcopy(self.model.state_dict())
-            
-            # Monitor training and save important training data
-            if epoch % 10 == 0:
-                # for monitoring training progress, 
-                # we compute the energy on the validation set and store its mean and variance
-                # and the parameters alpha and E_model for the current epoch
-                val_energy, E_K, V = self.energy_model(val_positions)
 
-                E_K_mean= E_K.mean().item()
                 self.E_K_array.append(E_K_mean)
-
-                V_mean = V.mean().item()
                 self.V_array.append(V_mean)
-
-                mean_energy = val_energy.mean().item()
+                self.V_coulomb_array.append(V_coulomb_mean)
                 self.energy_val_mean.append(mean_energy)
-
-                E_L_var = val_energy.var().item()
                 self.energy_val_var.append(E_L_var)
-               
-                energy_model_value = self.energy.item()
-                self.energy_model_array.append(energy_model_value)
-                
+                self.energy_val_std_array.append(E_L_std)
+                self.energy_model_array.append(self.energy.item())
                 self.alpha_array.append(self.model.alpha.item())
 
-                print(f"Epoch {epoch}: <E>_val={mean_energy:.8f}: E_K={E_K_mean:.8f}, V={V_mean:.8f}: Var(<E>_val)={E_L_var:.8f}, alpha = {self.model.alpha.item():.4f}")
-                print(f"Loss = {avg_pde:.8f}, Validation Loss = {pde_val_loss.item():.8f}")
-                print(f'Energy model {self.energy.item():.8f}')
+                print(
+                    f"Epoch {epoch}: <E>_val={mean_energy:.4f}: "
+                    f"Var(<E>_val)={E_L_var:.4f}: "
+                    f"E_K={E_K_mean:.4f}, V={V_mean:.4f}, "
+                    f"V_coulomb={V_coulomb_mean:.4f}: "
+                    f", alpha = {self.model.alpha.item():.4f}"
+                )
+                print(f"Loss = {avg_pde:.4f}, Validation Loss = {pde_val_loss_value:.4f}")
+                print(f"Energy model {self.energy.item():.4f}")
+
+                del pde_val_loss_value, val_energy, E_K, V, V_coulomb
+
+            del positions, batch_array
 
             if use_scheduler:
                 scheduler.step()
 
         return loss, epochs, val_loss, epochs_val, best_model_state
+
+
 

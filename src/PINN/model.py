@@ -101,8 +101,10 @@ class SE_Model(nn.Module):
         activation_function=nn.GELU(),
         alpha=0.5,
         beta=1.0,
-        trainable_alpha=False
-        
+        trainable_alpha=False,
+        trainable_energy=False,
+        beta_jastrow=0.5,
+        trainable_beta_jastrow=False
     ):
         super().__init__()
 
@@ -111,7 +113,7 @@ class SE_Model(nn.Module):
         self.a = a
         self.omega_ho = omega_ho
         self.omega_z = omega_z
-        
+    
         self.phi = Model(
             num_inputs=dim,
             num_outputs=phi_output,
@@ -137,8 +139,32 @@ class SE_Model(nn.Module):
             self.alpha = nn.Parameter(torch.tensor(alpha, dtype=torch.float32))
         else:
             self.register_buffer("alpha", torch.tensor(alpha, dtype=torch.float32))
-
+        
         self.register_buffer("beta", torch.tensor(beta, dtype=torch.float32))
+        self.trainable_energy = trainable_energy
+
+        if trainable_beta_jastrow:
+            self.beta_jastrow = nn.Parameter(torch.tensor(beta_jastrow, dtype=torch.float32))
+        else:   
+            self.register_buffer("beta_jastrow", torch.tensor(beta_jastrow, dtype=torch.float32))
+
+    def jastrow_log(self, pair_dist):
+        """
+        Computes the log of the Jastrow factor for a batch of pairwise distances.
+        Uses the cusp-condition form: sum_{i<j} ln(1 - a / r_ij)
+        
+        Parameters:
+            - pair_dist (torch.Tensor): shape (B, num_pairs), pairwise distances
+        Returns:
+            - torch.Tensor: shape (B, 1), log Jastrow contribution
+        """
+        # Clamp to avoid log of negative or zero (r_ij must be > a)
+
+        r = pair_dist.clamp(min=1e-8)
+        pade_jastrow = (self.a * r / (1.0 + self.beta_jastrow * r)).sum(dim=1, keepdim=True)
+
+        return pade_jastrow
+
 
     def forward(self, positions):
 
@@ -197,8 +223,14 @@ class SE_Model(nn.Module):
         combined = torch.cat([phi_sum, eta_sum], dim=1)  # shape (B, phi_output + eta_output)
         correction = self.rho(combined)                  # shape (B, 1)
 
+    
+        if self.a!=0.0:
+            jastrow = self.jastrow_log(pair_dist)   # shape (B, 1)
+        else:
+            jastrow = 0.0
+
         # Final log-wavefunction
-        u_theta = gauss + correction
+        u_theta = gauss + correction + jastrow
 
         return u_theta 
     
@@ -223,7 +255,6 @@ def test_create_model():
 model = test_create_model() # for testing model creation and weight initialization
 
 """
-
 
 
 def reconstruct_SE_model(path):
