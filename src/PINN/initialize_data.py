@@ -199,14 +199,10 @@ class InitializeData:
 
         iu = torch.triu_indices(self.N, self.N, offset=1, device=candidates.device)
         rij = r_ij_abs[:, iu[0], iu[1]]  # (B, num_pairs)
-        if self.dim == 1 or self.dim==2:
-             # in 1D we only care about the absolute distance between particles
-            eps=5e-2
+        hard_core = 0.0043 #the particles cannot be inside each other
+    
+        return torch.all(rij > hard_core, dim=1)
 
-            return torch.all(rij > self.a + eps, dim=1)
-        
-        else:
-            return torch.all(rij > self.a, dim=1)
 
     def distance_and_distance_vecs(self, r):
         """

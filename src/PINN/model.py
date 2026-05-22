@@ -102,8 +102,9 @@ class SE_Model(nn.Module):
         alpha=0.5,
         beta=1.0,
         trainable_alpha=False,
-        trainable_energy=False
-        
+        trainable_energy=False,
+        beta_jastrow=0.5,
+        trainable_beta_jastrow=False
     ):
         super().__init__()
 
@@ -112,7 +113,7 @@ class SE_Model(nn.Module):
         self.a = a
         self.omega_ho = omega_ho
         self.omega_z = omega_z
-        
+    
         self.phi = Model(
             num_inputs=dim,
             num_outputs=phi_output,
@@ -142,6 +143,11 @@ class SE_Model(nn.Module):
         self.register_buffer("beta", torch.tensor(beta, dtype=torch.float32))
         self.trainable_energy = trainable_energy
 
+        if trainable_beta_jastrow:
+            self.beta_jastrow = nn.Parameter(torch.tensor(beta_jastrow, dtype=torch.float32))
+        else:   
+            self.register_buffer("beta_jastrow", torch.tensor(beta_jastrow, dtype=torch.float32))
+
     def jastrow_log(self, pair_dist):
         """
         Computes the log of the Jastrow factor for a batch of pairwise distances.
@@ -153,21 +159,13 @@ class SE_Model(nn.Module):
             - torch.Tensor: shape (B, 1), log Jastrow contribution
         """
         # Clamp to avoid log of negative or zero (r_ij must be > a)
-        ratio = self.a / pair_dist.clamp(min=self.a + 1e-8)
-        log_j = torch.log1p(-ratio).sum(dim=1, keepdim=True)  # shape (B, 1)
-        return log_j
 
-    def jastrow_log_smooth(self, pair_dist):
-        """
-        Smooth pairwise Jastrow factor:
-            J = sum_{i<j} c r_ij / (1 + beta_j r_ij)
-        """
-        c = self.a
-        beta_j = 1.0
+        r = pair_dist.clamp(min=1e-8)
+        pade_jastrow = (self.a * r / (1.0 + self.beta_jastrow * r)).sum(dim=1, keepdim=True)
 
-        jastrow = c * pair_dist / (1.0 + beta_j * pair_dist)
-        return jastrow.sum(dim=1, keepdim=True)
-    
+        return pade_jastrow
+
+
     def forward(self, positions):
 
         """
@@ -225,12 +223,9 @@ class SE_Model(nn.Module):
         combined = torch.cat([phi_sum, eta_sum], dim=1)  # shape (B, phi_output + eta_output)
         correction = self.rho(combined)                  # shape (B, 1)
 
-        # Jastrow factor (only if a > 0 and we have pairs)
-        if self.a > 0.0 and self.N >= 2:
-            if self.dim == 1 or self.dim==2:
-                jastrow = self.jastrow_log_smooth(pair_dist)   # shape (B, 1)
-            else:
-                jastrow = self.jastrow_log(pair_dist)   # shape (B, 1)
+    
+        if self.a!=0.0:
+            jastrow = self.jastrow_log(pair_dist)   # shape (B, 1)
         else:
             jastrow = 0.0
 

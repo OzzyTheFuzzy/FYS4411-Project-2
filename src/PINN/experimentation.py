@@ -9,20 +9,21 @@ from PINN_vs_analytical import *
 from blocking import blocking_error, plot_blocking
 
 # Configuration
-width = 1      # Width of the Gaussian distribution for sampling collocation points
-a     = 1     # a=1.0  for interactions   Hard-core radius (set to 0 for no interactions)
+width = 0.70     # Width of the Gaussian distribution for sampling collocation points
+a     = 1.0     # a=1.0  for strength of the Coulomb interactions   
 N     = 10         # Number of particles (dimensions)
 dim   = 3        # Dimensionality of the particles
 omega_ho = 1.0        # Frequency of the harmonic trap in the x and y directions
 beta     = 2.82843   # 
 omega_z  = beta       # Frequency of the harmonic trap in the z-direction. Set equal to beta for antisotropic case, and to 1 for isotropic case
 
+beta_jastrow = 0.5
 
 #  Training parameters
-training_points = 10000
+training_points = 2000
 seed            = 17
-epochs      = 200
-batch_size  = 1000
+epochs      = 400
+batch_size  = 100
 num_batches = training_points // batch_size
 val_points  = 10000
 val_width   = width # width of the Gaussian distribution for sampling validation collocation points
@@ -32,9 +33,10 @@ lr_E        = 1e-2 # learning rate for energy parameter, set lower than lr for s
 lr_alpha    = 1e-6 # learning rate for alpha parameter, set lower than
 trainable_alpha = False # whether to train the energy parameter alpha or keep it fixed during training
 trainable_energy = False # whether to train the energy parameter or keep it fixed during training
-coulomb_init    = False # if we do not have VMC results for the given config, use coulomb initialization
-model_name      = f"{N}N_beta{beta}_lr{lr}_a{a}_32_tp{training_points:.2e}" # name for saving model and logs
-
+coulomb_init    = False # if we do not have hard coded energy results for the given config, use coulomb initialization
+model_name      = f"{N}N_beta{beta}_long_jastrow{beta_jastrow}_width{width}_a{a}_tp{training_points:.2e}" # name for saving model and logs
+trainable_beta_jastrow = False
+lr_beta_jastrow = 1e-5
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -47,9 +49,9 @@ def train_and_evaluate():
     model_config = {
         "dim": dim,
         "N": N,
-        "rho_hidden": [32,32,32,32], 
-        "phi_hidden": [2], #
-        "eta_hidden": [2], #
+        "rho_hidden": [32, 32], 
+        "phi_hidden": [8, 8], #
+        "eta_hidden": [8, 8, 8], #
         "phi_output": 4,
         "eta_output": 4,
         "activation_function": nn.GELU(),
@@ -59,7 +61,9 @@ def train_and_evaluate():
         "a": a,
         "omega_z": omega_z,
         "omega_ho": omega_ho,
-        "trainable_energy": trainable_energy
+        "trainable_energy": trainable_energy,
+        "beta_jastrow": beta_jastrow,
+        "trainable_beta_jastrow": trainable_beta_jastrow,
     }
     # Model initialization, with optimizer and scheduler
     model = SE_Model(**model_config)
@@ -69,17 +73,30 @@ def train_and_evaluate():
     trainer = Training(model, val_points, val_width, val_seed)
     print("Training class initialization complete.")
     # slowing down training for alpha and energy parameter for smoother convergence towards true GS
-    optimizer = torch.optim.Adam([
-        {
-            "params": [
-                p for name, p in trainer.named_parameters()
-                if name not in ["energy", "model.alpha"]
-            ],
-            "lr": lr,
-        },
-        {"params": [trainer.energy], "lr": lr_E},
-        {"params": [trainer.model.alpha], "lr": lr_alpha},
-    ])
+    param_groups = [
+    {
+        "params": [
+            p for name, p in trainer.named_parameters()
+            if name not in [
+                "energy",
+                "model.alpha",
+                "model.beta_jastrow",
+            ]
+        ],
+        "lr": lr,
+    }
+    ]
+
+    if trainable_energy:
+        param_groups.append({"params": [trainer.energy], "lr": lr_E})
+
+    if trainable_alpha:
+        param_groups.append({"params": [trainer.model.alpha], "lr": lr_alpha})
+
+    if trainable_beta_jastrow:
+        param_groups.append({"params": [trainer.model.beta_jastrow], "lr": lr_beta_jastrow})
+
+    optimizer = torch.optim.Adam(param_groups)
     # Set up optimizer and learning rate scheduler
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.995)
     # train the model and get training results
@@ -152,7 +169,7 @@ plot_loss_curves(model_name) # for plotting the loss during training
 samples = 1000000
 samples = int(1000000-samples//10*2.0)# to check VMC energy (samples=amount of positions)
 
-E_mean, E_std, E_L= energy_vmc_and_plot(model_name, N=N, d=dim, samples=samples, beta=beta, a=a, omega_z=omega_z, omega_ho=omega_ho, full=False) # for evaluating the energy of the trained model
-block_variance, block_error, B_list, n_list = blocking_error(E_L.detach().cpu().numpy().flatten()) # for performing blocking analysis on the energies obtained from the trained model
+#E_mean, E_std, E_L= energy_vmc_and_plot(model_name, N=N, d=dim, samples=samples, beta=beta, a=a, omega_z=omega_z, omega_ho=omega_ho, full=False) # for evaluating the energy of the trained model
+#block_variance, block_error, B_list, n_list = blocking_error(E_L.detach().cpu().numpy().flatten()) # for performing blocking analysis on the energies obtained from the trained model
 
-plot_blocking(B_list, block_error, beta=beta, name_of_model=model_name, N=N, a=a) # for plotting the blocking analysis results
+#plot_blocking(B_list, block_error, beta=beta, name_of_model=model_name, N=N, a=a) # for plotting the blocking analysis results

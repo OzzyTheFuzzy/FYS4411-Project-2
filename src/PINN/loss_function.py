@@ -55,7 +55,7 @@ class LossFunctions(nn.Module):
             device=self.device,
             dtype=self.energy.dtype
         )
-    def initialize_energy_with_VMC(self):
+    def initialize_energy_with_data(self):
 
         if self.model.N ==2 and self.model.beta!=1.0:
             E_VMC = 2.8341
@@ -72,11 +72,11 @@ class LossFunctions(nn.Module):
             device=self.device,
             dtype=self.energy.dtype)
 
-        if self.model.N==10 and self.model.dim==3 and self.model.a > 0.0 and self.model.beta!=1.0:
-            E_VMC = 24.405  # obtained from VMC sampling with the initial model, can be adjusted based on the specific system and model initialization
+        if self.model.N==10 and self.model.dim==3 and self.model.a == 1.0 and self.model.beta!=1.0:
+            E_RBM = 58.09  # obtained from VMC sampling with the initial model, can be adjusted based on the specific system and model initialization
             
             self.energy.data = torch.tensor(
-                E_VMC,
+                E_RBM,
                 device=self.device,
                 dtype=self.energy.dtype
             )

@@ -103,7 +103,7 @@ class Training(LossFunctions):
             if coulomb_init:
                 self.initialize_energy_with_coulomb(val_positions)
             else: 
-                self.initialize_energy_with_VMC()
+                self.initialize_energy_with_data()
 
         # Lists to store training and validation results
         loss, epochs = [], []
