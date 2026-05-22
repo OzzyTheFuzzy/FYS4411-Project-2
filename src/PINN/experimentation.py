@@ -10,11 +10,11 @@ from blocking import blocking_error, plot_blocking
 
 # Configuration
 width = 1      # Width of the Gaussian distribution for sampling collocation points
-a     = 0.0043      # 0.0043  for interactions   Hard-core radius (set to 0 for no interactions)
-N     = 2         # Number of particles (dimensions)
-dim   = 2        # Dimensionality of the particles
+a     = 1     # a=1.0  for interactions   Hard-core radius (set to 0 for no interactions)
+N     = 10         # Number of particles (dimensions)
+dim   = 3        # Dimensionality of the particles
 omega_ho = 1.0        # Frequency of the harmonic trap in the x and y directions
-beta     = 1.0   # 
+beta     = 2.82843   # 
 omega_z  = beta       # Frequency of the harmonic trap in the z-direction. Set equal to beta for antisotropic case, and to 1 for isotropic case
 
 
