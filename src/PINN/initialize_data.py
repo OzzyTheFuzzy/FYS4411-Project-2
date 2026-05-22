@@ -125,8 +125,8 @@ class InitializeData:
         # Hard-core case: rejection sampling 
         accepted = []
         tries = 0
-        n1 = total_needed // 3
-        n2 = total_needed // 3
+        n1 = 4 * total_needed // 10 
+        n2 = 4 * total_needed // 10
         n3 = total_needed - n1 - n2  # takes the remainder to ensure n1+n2+n3 = batch_size
         
         while total_needed > 0 and tries < max_tries:
@@ -159,52 +159,40 @@ class InitializeData:
                 dtype=self.dtype,
             ) * sigmas
 
-            candidates = torch.cat([candidates_1, candidates_2, candidates_3], dim=0)
-            # scramble the particle positions to avoid any ordering bias
-            perm = torch.randperm(
-                candidates.shape[0],
-                generator=g,
-                device=self.device,
-            )
+            valid_1 = candidates_1[self.min_distance(candidates_1, min_distance=0.80)]
+            valid_2 = candidates_2[self.min_distance(candidates_2, min_distance=0.80)]
+            valid_3 = candidates_3[self.min_distance(candidates_3, min_distance=0.60)]
 
-            candidates = candidates[perm]
-            valid_mask = self.min_distance(candidates)
+            candidates = torch.cat([valid_1, valid_2, valid_3], dim=0)
 
-            if valid_mask.any():
-                accepted.append(candidates[valid_mask])
-                total_needed -= valid_mask.sum().item()
+            if candidates.shape[0] > 0:
+                perm = torch.randperm(
+                    candidates.shape[0],
+                    generator=g,
+                    device=self.device,
+                )
+
+                candidates = candidates[perm]
+
+                n_take = min(total_needed, candidates.shape[0])
+                accepted.append(candidates[:n_take])
+                total_needed -= n_take
 
         if total_needed > 0:
-            raise RuntimeError(
-                f"Could not generate enough valid configurations with hard-core radius {self.a}. "
-                f"Still missing {total_needed} after {max_tries} tries. Fix width of initialisation."
-            )
+            raise RuntimeError("Failed to generate enough valid configurations.")
 
         positions = torch.cat(accepted, dim=0)[:batch_size]
-        # return positions with only valid configurations, shape (batch_size, N, dim)
-
         return positions
-            
-    def min_distance(self, candidates):      
-        """
-        Safeguard for the hard core condition
 
-        Parameters:
-            candidates: shape (batch_size, N, dim)
 
-        Returns:
-            torch.BoolTensor: Mask of valid configurations
-        """
-        r_ij_abs, r_ij = self.distance_and_distance_vecs(candidates)  # (B, N, N), (B, N, N, dim)
+
+                
+    def min_distance(self, candidates, min_distance=0.80):
+        r_ij_abs, _ = self.distance_and_distance_vecs(candidates)
 
         iu = torch.triu_indices(self.N, self.N, offset=1, device=candidates.device)
-        rij = r_ij_abs[:, iu[0], iu[1]]  # (B, num_pairs)
+        rij = r_ij_abs[:, iu[0], iu[1]]
 
-        min_distance=0.0024
-
-        if self.a>0.0:
-            min_distance= 0.80   #the particles cannot be inside each other
-    
         return torch.all(rij > min_distance, dim=1)
 
 

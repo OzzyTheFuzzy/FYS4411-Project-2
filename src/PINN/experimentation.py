@@ -9,20 +9,20 @@ from PINN_vs_analytical import *
 from blocking import blocking_error, plot_blocking
 
 # Configuration
-width = 0.75     # Width of the Gaussian distribution for sampling collocation points
+width = 0.85     # Width of the Gaussian distribution for sampling collocation points
 a     = 1.0     # a=1.0  for strength of the Coulomb interactions   
 N     = 10         # Number of particles (dimensions)
 dim   = 3        # Dimensionality of the particles
 omega_ho = 1.0        # Frequency of the harmonic trap in the x and y directions
 beta     = 2.82843   # 
-omega_z  = beta       # Frequency of the harmonic trap in the z-direction. Set equal to beta for antisotropic case, and to 1 for isotropic case
-
+omega_z  = beta       # Frequency of the harmonic trap in the z-direction. Set equal to beta for antisotropic case, and to 1 for isotropic cas
 beta_jastrow = 0.5
 
+
 #  Training parameters
-training_points = 1000
+training_points = 2000
 seed            = 17
-epochs      = 100
+epochs      = 250
 batch_size  = 100
 num_batches = training_points // batch_size
 val_points  = 10000
@@ -162,7 +162,7 @@ def train_and_evaluate():
     print(f"Saved model to models/{model_name}.pth")
     print(f"Saved logs to logs/{model_name}.json")
 
-#train_and_evaluate() # uncomment for training 
+train_and_evaluate() # uncomment for training 
 plot_loss_curves(model_name) # for plotting the loss during training
 
 # vmc samples from .dat file
