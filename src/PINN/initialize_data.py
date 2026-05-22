@@ -67,7 +67,7 @@ class InitializeData:
 
         # Start positions near origin (Gaussian). Shape: (N, dim) 
 
-    def particle_positions(self, batch_size, width=1.0, seed=17, max_tries=100):
+    def particle_positions(self, batch_size, width=1.0, seed=17, max_tries=1000):
         """
         Sample many configurations from a Gaussian.
 
@@ -150,7 +150,7 @@ class InitializeData:
                 dtype=self.dtype,
             ) * sigmas
 
-            candidates_3 = 0.5 * torch.randn(
+            candidates_3 = 1.4 * torch.randn(
                 n3,
                 self.N,
                 self.dim,
@@ -168,7 +168,7 @@ class InitializeData:
             )
 
             candidates = candidates[perm]
-            valid_mask = self.valid_hard_core(candidates)
+            valid_mask = self.min_distance(candidates)
 
             if valid_mask.any():
                 accepted.append(candidates[valid_mask])
@@ -185,7 +185,7 @@ class InitializeData:
 
         return positions
             
-    def valid_hard_core(self, candidates):      
+    def min_distance(self, candidates):      
         """
         Safeguard for the hard core condition
 
@@ -199,9 +199,13 @@ class InitializeData:
 
         iu = torch.triu_indices(self.N, self.N, offset=1, device=candidates.device)
         rij = r_ij_abs[:, iu[0], iu[1]]  # (B, num_pairs)
-        hard_core = 0.0043 #the particles cannot be inside each other
+
+        min_distance=0.0024
+
+        if self.a>0.0:
+            min_distance= 0.80   #the particles cannot be inside each other
     
-        return torch.all(rij > hard_core, dim=1)
+        return torch.all(rij > min_distance, dim=1)
 
 
     def distance_and_distance_vecs(self, r):

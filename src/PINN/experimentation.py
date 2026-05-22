@@ -9,7 +9,7 @@ from PINN_vs_analytical import *
 from blocking import blocking_error, plot_blocking
 
 # Configuration
-width = 0.70     # Width of the Gaussian distribution for sampling collocation points
+width = 0.75     # Width of the Gaussian distribution for sampling collocation points
 a     = 1.0     # a=1.0  for strength of the Coulomb interactions   
 N     = 10         # Number of particles (dimensions)
 dim   = 3        # Dimensionality of the particles
@@ -20,9 +20,9 @@ omega_z  = beta       # Frequency of the harmonic trap in the z-direction. Set e
 beta_jastrow = 0.5
 
 #  Training parameters
-training_points = 2000
+training_points = 1000
 seed            = 17
-epochs      = 400
+epochs      = 100
 batch_size  = 100
 num_batches = training_points // batch_size
 val_points  = 10000
@@ -34,7 +34,7 @@ lr_alpha    = 1e-6 # learning rate for alpha parameter, set lower than
 trainable_alpha = False # whether to train the energy parameter alpha or keep it fixed during training
 trainable_energy = False # whether to train the energy parameter or keep it fixed during training
 coulomb_init    = False # if we do not have hard coded energy results for the given config, use coulomb initialization
-model_name      = f"{N}N_beta{beta}_long_jastrow{beta_jastrow}_width{width}_a{a}_tp{training_points:.2e}" # name for saving model and logs
+model_name      = f"{N}N_beta{beta}_jastrow{beta_jastrow}_width{width}_a{a}_tp{training_points:.2e}" # name for saving model and logs
 trainable_beta_jastrow = False
 lr_beta_jastrow = 1e-5
 def train_and_evaluate():
@@ -162,14 +162,13 @@ def train_and_evaluate():
     print(f"Saved model to models/{model_name}.pth")
     print(f"Saved logs to logs/{model_name}.json")
 
-train_and_evaluate() # uncomment for training 
+#train_and_evaluate() # uncomment for training 
 plot_loss_curves(model_name) # for plotting the loss during training
 
 # vmc samples from .dat file
-samples = 1000000
-samples = int(1000000-samples//10*2.0)# to check VMC energy (samples=amount of positions)
+samples = 524288
 
-#E_mean, E_std, E_L= energy_vmc_and_plot(model_name, N=N, d=dim, samples=samples, beta=beta, a=a, omega_z=omega_z, omega_ho=omega_ho, full=False) # for evaluating the energy of the trained model
-#block_variance, block_error, B_list, n_list = blocking_error(E_L.detach().cpu().numpy().flatten()) # for performing blocking analysis on the energies obtained from the trained model
+E_mean, E_std, E_L= energy_vmc_and_plot(model_name, N=N, d=dim, samples=samples, beta=beta, a=a, omega_z=omega_z, omega_ho=omega_ho, full=False) # for evaluating the energy of the trained model
+block_variance, block_error, B_list, n_list = blocking_error(E_L.detach().cpu().numpy().flatten()) # for performing blocking analysis on the energies obtained from the trained model
 
-#plot_blocking(B_list, block_error, beta=beta, name_of_model=model_name, N=N, a=a) # for plotting the blocking analysis results
+plot_blocking(B_list, block_error, beta=beta, name_of_model=model_name, N=N, a=a) # for plotting the blocking analysis results

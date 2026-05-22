@@ -11,7 +11,7 @@ from scipy.integrate import trapezoid
 
 project_root = Path(__file__).resolve().parent
 
-data_dir = project_root / "positions_energy_data"
+data_dir = project_root / "positions"
 model_dir = project_root / "models"
 
 def load_results(model_name):
@@ -94,26 +94,30 @@ def model_reconstructer(model_name, nparticles, dim, a=0.0, beta=None, omega_z=1
     return model
 
 
-def load_positions_and_energy(filename, device="cpu", index=None):
+def load_positions_txt(N, d, beta=None, a=0.0):
     """
-    if you have the filename and only want pos and energy
+    Load positions from text file with columns:
+    step | particle index | coordinates
     """
-    data = np.load(data_dir / f"{filename}.npz")
-    
-    r_all = data["r_all"]
-    n_samples, N, dim = r_all.shape 
 
-    E_ana = data["E"]
+    beta_str = "None" if beta is None else str(beta)
+    a_str = str(a)
 
-    positions = torch.tensor(r_all, dtype=torch.float32, device=device)
-    energies = torch.tensor(E_ana, dtype=torch.float32, device=device).reshape(-1, 1)
+    filename = f"r_all_N{N}_d{d}_beta{beta_str}_a{a_str}.dat"
+    path = data_dir / filename
 
-    if index is not None:
-        positions = positions[index:index+1]
-        energies = energies[index:index+1]
+    if not path.exists():
+        raise FileNotFoundError(f"Could not find file: {path}")
 
-    return positions, energies.detach().cpu().numpy(), n_samples, N, dim # retrieve positions with torch and and return energies as numpy for plotting
+    data = np.loadtxt(path, comments="#")
 
+    # coordinates start at column 2
+    coords = data[:, 2:2+d]
+
+    # reshape into (samples, N, d)
+    positions = coords.reshape(-1, N, d)
+
+    return positions
 
 def plot_energies(PINN_energies, energies):
     
@@ -129,36 +133,42 @@ def plot_energies(PINN_energies, energies):
 
 def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, omega_ho=1.0, device="cpu", full=False):
     energies_for_plot = []
-
-    if beta == 1.0:
-        E_ana= N * d / 2
+    if a==0.0:
+       
+        if beta == 1.0:
+            E_ana = N * d / 2
+        else:
+            E_ana = N * (1 + beta / 2)
     else:
-        E_ana = N * (1 + beta / 2)
-
+        if N == 2 and d == 3 and a == 1.0 and beta != 1.0:
+            E_ana = 5.692  # obtained from RBM, can be adjusted based on the specific system and model initialization
+        elif N == 10 and d == 3 and a == 1.0 and beta != 1.0:
+            E_ana = 58.09  # obtained from RBM, can be adjusted based on the specific system and model initialization
+        else:
+            raise ValueError("Analytical energy not known for this combination of parameters")
+        
     max_plot_points = 10000
-    batch_size = 10000
+    batch_size      = 10000 # to avoid memory issues when evaluating the energy on a large number of samples
     model_name=f'{model_name}.pth'
 
     model = model_reconstructer(model_name, N, d, a=a, beta=beta, omega_z=omega_z, omega_ho=omega_ho)
 
     if beta ==1.0:
         beta=None
-        positions= load_pos_memmap(
-            n_samples=samples,
-            N=N,
-            d=d,
-            beta=beta,
-            a=a,
-        )
+        positions = load_positions_txt(
+                        N=N,
+                        d=d,
+                        beta=beta,
+                        a=a,
+                    )
 
     else:
-        positions= load_pos_memmap(
-            n_samples=samples,
-            N=N,
-            d=d,
-            beta=beta,
-            a=a,
-        )
+        positions = load_positions_txt(
+                        N=N,
+                        d=d,
+                        beta=beta,
+                        a=a,
+                    )
 
     E_sum = 0.0
     E2_sum = 0.0
@@ -171,7 +181,7 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
     if full == False:
 
         positions_i = torch.tensor(positions[-10_000:],dtype=torch.float32,device=device,requires_grad=True,)
-
+        
         E_L, E_K, V, V_coulomb = trainer.energy_model(positions_i)
 
         E_i   = E_L.detach().cpu().numpy().reshape(-1)
@@ -188,11 +198,11 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
         E_std = np.sqrt(max(E_L_var, 0.0))
         print(f"Using last 10,000 positions for quick energy evaluation:")
         print(f"N = {N}, d = {d}, beta = {beta}, a = {a}")
-        print(f"PINN E_mean = {E_L_mean:.8f} and E_ana = {E_ana:.8f}")
-        print(f"PINN E_std  = {E_std:.8f}")
-        print(f"PINN E_K_mean = {E_K_mean:.8f}")
-        print(f"PINN V_mean = {V_mean:.8f}")
-        print(f"PINN V_coulomb_mean = {V_coulomb_mean:.8f}")
+        print(f"PINN E_mean = {E_L_mean:.5f} and E_estimate = {E_ana:.5f}")
+        print(f"PINN E_std  = {E_std:.5f}")
+        print(f"PINN E_K_mean = {E_K_mean:.5f}")
+        print(f"PINN V_mean = {V_mean:.5f}")
+        print(f"PINN V_coulomb_mean = {V_coulomb_mean:.5f}")
         plot_energies(E_i, E_ana)
 
         return E_L_mean, E_std, E_L

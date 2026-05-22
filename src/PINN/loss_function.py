@@ -73,8 +73,15 @@ class LossFunctions(nn.Module):
             dtype=self.energy.dtype)
 
         if self.model.N==10 and self.model.dim==3 and self.model.a == 1.0 and self.model.beta!=1.0:
-            E_RBM = 58.09  # obtained from VMC sampling with the initial model, can be adjusted based on the specific system and model initialization
+            E_RBM = 58.09  # obtained from RBM
             
+            self.energy.data = torch.tensor(
+                E_RBM,
+                device=self.device,
+                dtype=self.energy.dtype
+            )
+        if self.model.N==2 and self.model.dim==3 and self.model.a == 1.0 and self.model.beta!=1.0:
+            E_RBM = 5.688  # obtained from RBM
             self.energy.data = torch.tensor(
                 E_RBM,
                 device=self.device,
