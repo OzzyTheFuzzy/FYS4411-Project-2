@@ -74,4 +74,21 @@ ParallelRunResult runVMCReplicasParallel(
     double gamma = 1.0
 );
 
+std::string writeProductionParticlePositions(
+    unsigned int N,
+    unsigned int D,
+    unsigned int nMetropolis,
+    unsigned int nEquil,
+    double stepParam,
+    Mode mode,
+    int seed,
+    bool useInteraction,
+    const std::vector<std::vector<double>>& a,
+    const std::vector<double>& b,
+    const std::vector<std::vector<std::vector<double>>>& W,
+    double gamma,
+    const std::string& outputDir = "data",
+    double interactionStrength = 1.0
+);
+
 std::vector<std::vector<double>> matr_mult(std::vector<std::vector<double>>& a, std::vector<std::vector<double>>& b);

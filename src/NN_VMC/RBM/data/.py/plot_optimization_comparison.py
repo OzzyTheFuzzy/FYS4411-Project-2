@@ -132,7 +132,7 @@ def main():
 
     project_root = find_project_root()
 
-    txt_dir = Path(args.txt_dir) if args.txt_dir is not None else project_root / "data" / ".txt" / "non-elliptical_interaction"
+    txt_dir = Path(args.txt_dir) if args.txt_dir is not None else project_root / "data" / ".txt" 
     pdf_dir = Path(args.pdf_dir) if args.pdf_dir is not None else project_root / "data" / ".pdf"
 
     pdf_dir.mkdir(parents=True, exist_ok=True)
@@ -194,8 +194,9 @@ def main():
 
     ax.set_xlabel("Optimization step",fontsize=20)
     ax.set_ylabel("Energy",fontsize=20)
+    ax.tick_params(labelsize=18)
     ax.grid(True, alpha=0.3)
-    ax.legend(fontsize=14)
+    ax.legend(fontsize=17)
 
     fig.tight_layout()
 

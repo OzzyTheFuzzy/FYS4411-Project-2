@@ -9,13 +9,20 @@
 //  ./vmc bf 0.8 10 3 --interact 
 //
 // Example to use RBM:
-//  ./vmc bf 0.8 2 2 --rbm
-//  ./vmc is 0.02 2 2 --rbm
-//  ./vmc is 0.02 10 3 --interact --rbm
-//  ./vmc is 0.02 2 2 --interact --rbm --opt rbmadam --lr 0.05 --Nh 2
+//  ./vmc bf 0.8 2 2 
+//  ./vmc is 0.02 2 2 
+//  ./vmc is 0.02 10 3 --interact 
+//  ./vmc is 0.02 2 2 --interact --replicas 4 --opt rbmadam --lr 0.05 --Nh 2 --gamma 2.82843
+//
+//          choose between "bf" and "is" for Brute Force metropolis and Importance Sampling respectively
+//          the number that follows "bf" or "is" is the step length or time step respectively
+//          The following two numbers, for example 2 2, represent the number of particles and dimensions respectively
+//          "--interact" takes the interaction between particles
+//          "--replicas 4" uses parallel computing, in this example computes 4 replicas. Run: export OMP_NUM_THREADS=4
 //          "--opt rbmadam" is for the adam optimizer in RBM
 //          "--lr 0.05" is the learning rate for the optimizer
 //          "--Nh 2" is the hidden layers number in RBM
+//          "--gamma 2.82843" is for the elliptical trap 
 
 #include <iostream>
 #include <vector>
@@ -76,7 +83,7 @@ int main(int argc, char** argv) {
     // RBM Adam optimization parameters
     bool useOptimization = false;
     std::string optMethod = "";
-    int rbmAdamIterations = 130;
+    int rbmAdamIterations = 100;
     double rbmLearningRate = 0.05;
     double rbmBeta1 = 0.9;
     double rbmBeta2 = 0.999;
@@ -334,6 +341,25 @@ int main(int argc, char** argv) {
 
     outHist.close();
     std::cout << "Saved energy histories to: " << histFile << "\n";
+
+    std::string positionsFile = writeProductionParticlePositions(
+        N,
+        D,
+        prodSteps,
+        prodEquil,
+        stepParam,
+        mode,
+        baseSeed + 424242,
+        useInteraction,
+        a,
+        b,
+        W,
+        gamma,
+        "data",
+        1.0
+    );
+
+    std::cout << "Saved particle positions to: " << positionsFile << "\n";
 
     return 0;
 }

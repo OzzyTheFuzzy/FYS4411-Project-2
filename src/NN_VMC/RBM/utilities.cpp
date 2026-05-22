@@ -12,7 +12,10 @@
 #include <cmath>
 #include <stdexcept>
 #include <algorithm>
+#include <filesystem>
 
+#include "WaveFunctions/boltzmannmachine.h"
+#include "WaveFunctions/wavefunction.h"
 #include "system.h"
 #include "Hamiltonians/elliptictrap.h"
 #include "Hamiltonians/rbminteractrap.h"
@@ -90,6 +93,23 @@ std::vector<std::vector<std::vector<double>>> zeroLike3D(
         }
     }
     return Z;
+}
+// No p in files name: from 1p0 to 1.0
+std::string doubleToPlainTag(double x) {
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(6) << x;
+
+    std::string s = oss.str();
+
+    while (!s.empty() && s.back() == '0') {
+        s.pop_back();
+    }
+
+    if (!s.empty() && s.back() == '.') {
+        s.push_back('0');
+    }
+
+    return s;
 }
 // ---------- add helpers ----------
 void add1D(
@@ -329,6 +349,90 @@ ParallelRunResult runVMCReplicasParallel(
     }
 
     return out;
+}
+
+std::string writeProductionParticlePositions(
+    unsigned int N,
+    unsigned int D,
+    unsigned int nMetropolis,
+    unsigned int nEquil,
+    double stepParam,
+    Mode mode,
+    int seed,
+    bool useInteraction,
+    const std::vector<std::vector<double>>& a,
+    const std::vector<double>& b,
+    const std::vector<std::vector<std::vector<double>>>& W,
+    double gamma,
+    const std::string& outputDir,
+    double interactionStrength
+) {
+    const double initRange = 1.0;
+
+    std::filesystem::create_directories(outputDir);
+
+    std::string filename =
+        outputDir
+        + "/r_all_N" + std::to_string(N)
+        + "_d" + std::to_string(D)
+        + "_beta" + doubleToPlainTag(gamma)
+        + "_a" + doubleToPlainTag(interactionStrength)
+        + ".dat";
+
+    auto rng = std::make_unique<Random>(seed);
+
+    std::vector<std::unique_ptr<Particle>> particles =
+        setupRandomUniformInitialState(initRange, D, N, *rng);
+
+    std::unique_ptr<WaveFunction> waveFunction =
+        std::make_unique<BoltzmannMachine>(a, b, W, gamma);
+
+    std::unique_ptr<MonteCarlo> solver;
+
+    if (mode == Mode::Importance) {
+        solver = std::make_unique<ImportanceSampling>(std::move(rng), 0.5);
+    } else {
+        solver = std::make_unique<Metropolis>(std::move(rng));
+    }
+
+    // Equilibration: these positions are NOT written to file.
+    for (unsigned int step = 0; step < nEquil; ++step) {
+        solver->step(stepParam, *waveFunction, particles);
+    }
+
+    std::ofstream out(filename);
+    if (!out) {
+        throw std::runtime_error("Could not open particle-position output file: " + filename);
+    }
+
+    out << "# step particle";
+    for (unsigned int d = 0; d < D; ++d) {
+        out << " x" << d;
+    }
+    out << "\n";
+
+    out << std::setprecision(12);
+
+    // Production run: write positions after every Monte Carlo step.
+    for (unsigned int step = 0; step < nMetropolis; ++step) {
+        solver->step(stepParam, *waveFunction, particles);
+
+        for (unsigned int p = 0; p < N; ++p) {
+            const auto& r = particles[p]->getPosition();
+
+            out << (step + 1) << " " << p;
+
+            for (unsigned int d = 0; d < D; ++d) {
+                out << " " << r[d];
+            }
+
+            out << "\n";
+        }
+    }
+
+    out.close();
+
+    return filename;
 }
 
 std::vector<std::vector<double>> matr_mult(std::vector<std::vector<double>>& a, std::vector<std::vector<double>>& b) {
