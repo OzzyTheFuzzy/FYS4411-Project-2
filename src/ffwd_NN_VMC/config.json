@@ -8,7 +8,7 @@
         "useCache": false
     },
     "physics": {
-        "dimensions": 2,
+        "dimensions": 3,
         "particles": 2,
         "omega": 1.0,
         "omega_z": 2.8243,
@@ -25,15 +25,15 @@
         "BFGS_tol": 1e-5
     },
     "neural_network": {
-        "Nhid": 10,
-        "activationFunctionType": "sigmoid",
+        "Nhid": 12,
+        "activationFunctionType": "tanh",
         "helpDecay": 0.4,
         "lr": 0.05,
         "Adam_ktol": 0.99,
-        "max_patience": 100,
+        "max_patience": 80,
         "min_improvement": 0.02,
-        "nPretrainSteps": 2000,
-        "nEnergySteps": 4000,
+        "nPretrainSteps": 1000,
+        "nEnergySteps": 3000,
         "nAdiabSteps": 1000
     },
     "observables": {
