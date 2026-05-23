@@ -125,8 +125,8 @@ class InitializeData:
         # Hard-core case: rejection sampling 
         accepted = []
         tries = 0
-        n1 = 4 * total_needed // 10 
-        n2 = 4 * total_needed // 10
+        n1 = 49 * total_needed // 100 
+        n2 = 49 * total_needed // 100
         n3 = total_needed - n1 - n2  # takes the remainder to ensure n1+n2+n3 = batch_size
         
         while total_needed > 0 and tries < max_tries:
@@ -150,7 +150,7 @@ class InitializeData:
                 dtype=self.dtype,
             ) * sigmas
 
-            candidates_3 = 1.4 * torch.randn(
+            candidates_3 = 1.0 * torch.randn(
                 n3,
                 self.N,
                 self.dim,
@@ -160,8 +160,8 @@ class InitializeData:
             ) * sigmas
 
             valid_1 = candidates_1[self.min_distance(candidates_1, min_distance=0.80)]
-            valid_2 = candidates_2[self.min_distance(candidates_2, min_distance=0.80)]
-            valid_3 = candidates_3[self.min_distance(candidates_3, min_distance=0.60)]
+            valid_2 = candidates_2[self.min_distance(candidates_2, min_distance=0.70)]
+            valid_3 = candidates_3[self.min_distance(candidates_3, min_distance=0.0043)]
 
             candidates = torch.cat([valid_1, valid_2, valid_3], dim=0)
 

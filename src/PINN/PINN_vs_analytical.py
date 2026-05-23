@@ -183,7 +183,7 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
         positions_i = torch.tensor(positions[-10_000:],dtype=torch.float32,device=device,requires_grad=True,)
         
         E_L, E_K, V, V_coulomb = trainer.energy_model(positions_i)
-
+        
         E_i   = E_L.detach().cpu().numpy().reshape(-1)
         E_K_i = E_K.detach().cpu().numpy().reshape(-1)
         V_i   = V.detach().cpu().numpy().reshape(-1)

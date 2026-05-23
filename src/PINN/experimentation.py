@@ -34,9 +34,10 @@ lr_alpha    = 1e-6 # learning rate for alpha parameter, set lower than
 trainable_alpha = False # whether to train the energy parameter alpha or keep it fixed during training
 trainable_energy = False # whether to train the energy parameter or keep it fixed during training
 coulomb_init    = False # if we do not have hard coded energy results for the given config, use coulomb initialization
-model_name      = f"{N}N_beta{beta}_jastrow{beta_jastrow}_width{width}_a{a}_tp{training_points:.2e}" # name for saving model and logs
+model_name      = f"{N}N_beta{beta}_jastrow{beta_jastrow}_width{width}_a{a}_tp{training_points:.2e}_epoc{epochs}" # name for saving model and logs
 trainable_beta_jastrow = False
 lr_beta_jastrow = 1e-5
+
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -51,7 +52,7 @@ def train_and_evaluate():
         "N": N,
         "rho_hidden": [32, 32], 
         "phi_hidden": [8, 8], #
-        "eta_hidden": [8, 8, 8], #
+        "eta_hidden": [8, 8], #
         "phi_output": 4,
         "eta_output": 4,
         "activation_function": nn.GELU(),
