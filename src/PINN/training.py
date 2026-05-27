@@ -158,10 +158,13 @@ class Training(LossFunctions):
                 E_K_mean = E_K.mean().item()
                 V_mean = V.mean().item()
                 V_coulomb_mean = V_coulomb.mean().item()
+                del V_coulomb, V, E_K
+
                 mean_energy = val_energy.mean().item()
                 E_L_var = val_energy.var().item()
                 E_L_std = val_energy.std().item()
-
+                del val_energy
+                
                 val_loss.append(pde_val_loss_value)
                 epochs_val.append(epoch)
 
@@ -188,7 +191,7 @@ class Training(LossFunctions):
                 print(f"Loss = {avg_pde:.4f}, Validation Loss = {pde_val_loss_value:.4f}")
                 print(f"Energy model {self.energy.item():.4f}")
 
-                del pde_val_loss_value, val_energy, E_K, V, V_coulomb
+                del pde_val_loss_value
 
             del positions, batch_array
 

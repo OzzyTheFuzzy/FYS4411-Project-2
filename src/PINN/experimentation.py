@@ -9,7 +9,7 @@ from PINN_vs_analytical import *
 from blocking import blocking_error, plot_blocking
 
 # Configuration
-width = 0.85     # Width of the Gaussian distribution for sampling collocation points
+width = 0.95     # Width of the Gaussian distribution for sampling collocation points
 a     = 1.0     # a=1.0  for strength of the Coulomb interactions   
 N     = 10         # Number of particles (dimensions)
 dim   = 3        # Dimensionality of the particles
@@ -20,12 +20,12 @@ beta_jastrow = 0.5
 
 
 #  Training parameters
-training_points = 2000
+training_points = 2500
 seed            = 17
 epochs      = 250
-batch_size  = 100
+batch_size  = 200
 num_batches = training_points // batch_size
-val_points  = 10000
+val_points  = 2000
 val_width   = width # width of the Gaussian distribution for sampling validation collocation points
 val_seed    = 42 # random seed for sampling validation collocation points
 lr          = 1e-3 # learning rate for optimizer. Will be tuned during training by scheduler for smoother convergence

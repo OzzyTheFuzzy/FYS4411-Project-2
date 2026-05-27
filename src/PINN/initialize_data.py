@@ -128,7 +128,11 @@ class InitializeData:
         n1 = 49 * total_needed // 100 
         n2 = 49 * total_needed // 100
         n3 = total_needed - n1 - n2  # takes the remainder to ensure n1+n2+n3 = batch_size
-        
+        if self.a>0.0:
+            particle_pos_fn = self.particle_pos2(batch_size, seed, max_tries
+                                                 )
+            return particle_pos_fn
+
         while total_needed > 0 and tries < max_tries:
             tries += 1
 
@@ -150,7 +154,7 @@ class InitializeData:
                 dtype=self.dtype,
             ) * sigmas
 
-            candidates_3 = 1.0 * torch.randn(
+            candidates_3 = 0.8 * torch.randn(
                 n3,
                 self.N,
                 self.dim,
@@ -159,9 +163,9 @@ class InitializeData:
                 dtype=self.dtype,
             ) * sigmas
 
-            valid_1 = candidates_1[self.min_distance(candidates_1, min_distance=0.80)]
-            valid_2 = candidates_2[self.min_distance(candidates_2, min_distance=0.70)]
-            valid_3 = candidates_3[self.min_distance(candidates_3, min_distance=0.0043)]
+            valid_1 = candidates_1[self.min_distance(candidates_1, min_distance=0.45)]
+            valid_2 = candidates_2[self.min_distance(candidates_2, min_distance=0.45)]
+            valid_3 = candidates_3[self.min_distance(candidates_3, min_distance=0.45)]
 
             candidates = torch.cat([valid_1, valid_2, valid_3], dim=0)
 
@@ -183,8 +187,6 @@ class InitializeData:
 
         positions = torch.cat(accepted, dim=0)[:batch_size]
         return positions
-
-
 
                 
     def min_distance(self, candidates, min_distance=0.80):
@@ -212,4 +214,88 @@ class InitializeData:
 
         return r_ij_abs, r_ij
 
-    
+    def particle_pos2(self, batch_size, seed=17, max_tries=1000):
+        """
+        Interacting sampler for anisotropic trap.
+
+        Samples an ellipsoidal radial variable s, where
+
+            s^2 = x^2 + y^2 + omega_z z^2
+
+        Then maps to
+
+            x = s n_x
+            y = s n_y
+            z = s n_z / sqrt(omega_z)
+
+        This gives configurations adapted to the trap shape.
+        """
+
+        g = torch.Generator(device=self.device).manual_seed(seed)
+
+        accepted = []
+        total_needed = batch_size
+        tries = 0
+
+        # Tune these
+        s_mean = 2.0
+        s_std = 0.5
+        min_dist = 0.2
+
+        while total_needed > 0 and tries < max_tries:
+            tries += 1
+
+            n_propose = 4 * total_needed
+
+            # sample ellipsoidal radius
+            s = torch.normal(
+                mean=s_mean,
+                std=s_std,
+                size=(n_propose, self.N),
+                generator=g,
+                device=self.device,
+                dtype=self.dtype,
+            )
+
+            s = torch.clamp(s, min=0.05)
+
+            # random directions on unit sphere
+            directions = torch.randn(
+                n_propose,
+                self.N,
+                self.dim,
+                generator=g,
+                device=self.device,
+                dtype=self.dtype,
+            )
+
+            directions = directions / (
+                torch.linalg.norm(directions, dim=-1, keepdim=True) + 1e-12
+            )
+
+            # ellipsoidal coordinates
+            positions = s.unsqueeze(-1) * directions
+
+            # compress z according to anisotropic trap
+            if self.dim >= 3:
+                positions[:, :, 2] /= self.omega_z
+
+            valid_mask = self.min_distance(
+                positions,
+                min_distance=min_dist,
+            )
+
+            valid = positions[valid_mask]
+
+            if valid.shape[0] > 0:
+                n_take = min(total_needed, valid.shape[0])
+                accepted.append(valid[:n_take])
+                total_needed -= n_take
+
+        if total_needed > 0:
+            raise RuntimeError(
+                "particle_pos2 failed to generate enough valid configurations."
+            )
+
+        return torch.cat(accepted, dim=0)[:batch_size]
+        
