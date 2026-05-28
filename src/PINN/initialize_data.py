@@ -37,7 +37,7 @@ class InitializeData:
 
     """
 
-    def __init__(self, N, dim, device=None, dtype=torch.float32, hard_core_radius=0.0, omega_z=1.0):
+    def __init__(self, N, dim, device=None, dtype=torch.float32, hard_core_radius=0.0,initialize_gaussian=False, omega_z=1.0):
         self.N = N
         self.dim = dim
         self.a = hard_core_radius
@@ -47,6 +47,7 @@ class InitializeData:
         self.sigma_x = 1 / np.sqrt(2) 
         self.sigma_y = 1/ np.sqrt(2)
         self.sigma_z = 1 / np.sqrt(2 * omega_z)
+        self.initialize_gaussian = initialize_gaussian
 
     def initialize_pde(self, batch_size, width, seed):
 
@@ -128,7 +129,8 @@ class InitializeData:
         n1 = 49 * total_needed // 100 
         n2 = 49 * total_needed // 100
         n3 = total_needed - n1 - n2  # takes the remainder to ensure n1+n2+n3 = batch_size
-        if self.a>0.0:
+
+        if self.initialize_gaussian==False:
             particle_pos_fn = self.particle_pos2(batch_size, seed, max_tries
                                                  )
             return particle_pos_fn

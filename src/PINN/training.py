@@ -96,7 +96,7 @@ class Training(LossFunctions):
 
         # Generate fixed validation data
         N_validation = self.val_points
-        data_initializer_val = InitializeData(self.model.N, self.model.dim, device=self.device, hard_core_radius=self.model.a, omega_z=data_initializer.omega_z)
+        data_initializer_val = InitializeData(self.model.N, self.model.dim, device=self.device, hard_core_radius=self.model.a, initialize_gaussian=data_initializer.initialize_gaussian, omega_z=data_initializer.omega_z)
         val_positions = data_initializer_val.initialize_pde(N_validation, width=self.val_width, seed=self.val_seed)
         
         if self.model.a > 0.0: #finetunes the initial energy for coulomb interactions

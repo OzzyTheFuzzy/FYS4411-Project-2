@@ -133,6 +133,7 @@ def plot_energies(PINN_energies, energies):
 
 def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, omega_ho=1.0, device="cpu", full=False):
     energies_for_plot = []
+
     if a==0.0:
        
         if beta == 1.0:
@@ -143,7 +144,7 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
         if N == 2 and d == 3 and a == 1.0 and beta != 1.0:
             E_ana = 5.692  # obtained from RBM, can be adjusted based on the specific system and model initialization
         elif N == 10 and d == 3 and a == 1.0 and beta != 1.0:
-            E_ana = 58.09  # obtained from RBM, can be adjusted based on the specific system and model initialization
+            E_ana = 58.48  # obtained from RBM, can be adjusted based on the specific system and model initialization
         else:
             raise ValueError("Analytical energy not known for this combination of parameters")
         
@@ -153,23 +154,41 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
 
     model = model_reconstructer(model_name, N, d, a=a, beta=beta, omega_z=omega_z, omega_ho=omega_ho)
 
-    if beta ==1.0:
-        beta=None
-        positions = load_positions_txt(
-                        N=N,
-                        d=d,
-                        beta=beta,
-                        a=a,
-                    )
+    if a==1.0:
+        if beta ==1.0:
+            beta=None
+            positions = load_positions_txt(
+                            N=N,
+                            d=d,
+                            beta=beta,
+                            a=a,
+                        )
 
+        else:
+            positions = load_positions_txt(
+                            N=N,
+                            d=d,
+                            beta=beta,
+                            a=a,
+                        )
     else:
-        positions = load_positions_txt(
-                        N=N,
-                        d=d,
-                        beta=beta,
-                        a=a,
-                    )
-
+        if beta ==1.0:
+            beta=None
+            positions=load_pos_memmap(
+                                n_samples=samples,
+                                N=N,
+                                d=d,
+                                beta=beta,
+                                a=a,
+                            )
+        else:
+            positions=load_pos_memmap(
+                                n_samples=samples,
+                                N=N,
+                                d=d,
+                                beta=beta,
+                                a=a,
+                            )
     E_sum = 0.0
     E2_sum = 0.0
     count = 0
