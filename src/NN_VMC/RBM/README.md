@@ -1,6 +1,6 @@
 # FYS4411 Project 2: Neural-Network VMC for Trapped Bosons
 
-This repository contains a Variational Monte Carlo (VMC) code for trapped bosonic systems, extended from the Project 1 code to include a Restricted Boltzmann Machine (RBM) variational wave function. The code can run brute-force Metropolis sampling, importance sampling, parallel replicas and RBM Adam optimization.
+This repository contains a Variational Monte Carlo (VMC) code for trapped bosonic systems, extended from the Project 1. Here a Restricted Boltzmann Machine (RBM) variational wave function is implemented. The code can run brute-force Metropolis sampling, importance sampling, parallel replicas and RBM Adam optimization.
 
 ## Project structure
 
@@ -61,9 +61,9 @@ where:
 Examples:
 
 ```bash
-./vmc bf 0.8 2 2 --rbm
-./vmc is 0.02 2 2 --rbm
-./vmc is 0.02 10 3 --interact --rbm
+./vmc bf 0.8 2 2 
+./vmc is 0.02 2 2 
+./vmc is 0.02 10 3 --interact 
 ```
 
 ## Main options

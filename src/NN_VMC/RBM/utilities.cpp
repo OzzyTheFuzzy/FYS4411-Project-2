@@ -423,6 +423,11 @@ std::string writeProductionParticlePositions(
             out << (step + 1) << " " << p;
 
             for (unsigned int d = 0; d < D; ++d) {
+                if (!std::isfinite(r[d])) {
+                    throw std::runtime_error(
+                    "Non-finite particle position detected while writing .dat file."
+                    );
+                }
                 out << " " << r[d];
             }
 

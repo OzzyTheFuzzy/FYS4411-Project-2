@@ -341,7 +341,8 @@ int main(int argc, char** argv) {
 
     outHist.close();
     std::cout << "Saved energy histories to: " << histFile << "\n";
-
+ 
+/*
     std::string positionsFile = writeProductionParticlePositions(
         N,
         D,
@@ -360,6 +361,7 @@ int main(int argc, char** argv) {
     );
 
     std::cout << "Saved particle positions to: " << positionsFile << "\n";
+*/
 
     return 0;
 }

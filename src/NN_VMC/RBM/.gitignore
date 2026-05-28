@@ -36,3 +36,4 @@ build
 
 # Ignore default executable
 vmc
+*.dat
