@@ -147,7 +147,7 @@ class InitializeData:
                 dtype=self.dtype,
             ) * sigmas
 
-            candidates_2 = 1.5 * torch.randn(
+            candidates_2 = 1.0 * torch.randn(
                 n2,
                 self.N,
                 self.dim,
@@ -156,7 +156,7 @@ class InitializeData:
                 dtype=self.dtype,
             ) * sigmas
 
-            candidates_3 = 0.8 * torch.randn(
+            candidates_3 = 1.0 * torch.randn(
                 n3,
                 self.N,
                 self.dim,

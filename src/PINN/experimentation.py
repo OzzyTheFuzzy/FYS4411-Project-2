@@ -10,7 +10,7 @@ from blocking import blocking_error, plot_blocking
 
 # Configuration
 width = 1.0055     # Width of the Gaussian distribution for sampling collocation points
-a     = 0.0     # a=1.0  for strength of the Coulomb interactions   
+a     = 1.0     # a=1.0  for strength of the Coulomb interactions   
 N     = 10        # Number of particles (dimensions)
 dim   = 3        # Dimensionality of the particles
 omega_ho = 1.0        # Frequency of the harmonic trap in the x and y directions
@@ -20,9 +20,9 @@ beta_jastrow = 0.0 # Wavefunction parameter when interactions are included
 alpha   = 0.5 # Wavefunction parameter for the single-particle part of the wavefunction
 
 #  Training parameters
-training_points = 4000
+training_points = 2000
 seed            = 17
-epochs      = 1000
+epochs      = 250
 batch_size  = 250
 num_batches = training_points // batch_size
 val_points  = 2000
@@ -167,8 +167,8 @@ def train_and_evaluate():
     print(f"Saved model to models/{model_name}.pth")
     print(f"Saved logs to logs/{model_name}.json")
 
-train_and_evaluate() # uncomment for training 
-plot_loss_curves(model_name) # for plotting the loss during training
+#train_and_evaluate() # uncomment for training 
+#plot_loss_curves(model_name) # for plotting the loss during training
 
 # vmc samples from .dat file
 if a==0.0:
