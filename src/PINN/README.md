@@ -72,7 +72,11 @@ Evaluates trained PINN models and compares results with analytical solutions.
 
 ### `VMC_vs_PINN.py`
 
-Compares PINN results with VMC calculations.
+Compares PINN results with VMC calculations. Also has helper functions that:
+* reads .pth files and reconstructs models
+* load results from the -json files
+* plots losses from training
+* plots energies for the VMC sampled configuration
 
 ### `blocking.py`
 
@@ -80,7 +84,7 @@ Performs blocking analysis and uncertainty estimation.
 
 ### `load_positions.py`
 
-Loads saved particle-position samples.
+Loads saved particle-positions from configurations from VMC simulations
 
 ---
 
@@ -96,7 +100,7 @@ Training logs and metadata (`.json` files).
 
 ### `figures/`
 
-Generated plots and figures.
+Generated figures.
 
 ### `positions/`
 
@@ -115,9 +119,9 @@ Training data is generated automatically through `initialize_data.py` when runni
 Important parameters:
 
 ```python
-training_points = 4000
-width = 1.0
-seed = 17
+training_point:
+width 
+seed 
 ```
 
 To generate data for a different system, modify parameters such as:
@@ -134,5 +138,3 @@ and rerun:
 ```bash
 python experimentation.py
 ```
-
-The collocation points are sampled automatically during training.

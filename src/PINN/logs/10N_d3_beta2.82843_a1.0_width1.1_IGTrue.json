@@ -1,0 +1,77 @@
+{
+  "model_name": "10N_d3_beta2.82843_a1.0_width1.1_IGTrue",
+  "model_config": {
+    "dim": 3,
+    "N": 10,
+    "rho_hidden": [
+      32,
+      32
+    ],
+    "phi_hidden": [
+      4,
+      4
+    ],
+    "eta_hidden": [
+      4,
+      4
+    ],
+    "phi_output": 4,
+    "eta_output": 4,
+    "activation_function": "GELU",
+    "alpha": 0.497,
+    "beta": 2.82843,
+    "trainable_alpha": false,
+    "a": 1.0,
+    "omega_z": 2.82843,
+    "omega_ho": 1.0,
+    "trainable_energy": false,
+    "beta_jastrow": 0.5,
+    "trainable_beta_jastrow": false
+  },
+  "training_points": 500,
+  "batch_size": 250,
+  "width": 1.1,
+  "val_seed": 42,
+  "val_points": 2000,
+  "initialize_gaussian": true,
+  "seed": 17,
+  "energy_parameter_final": 58.47999954223633,
+  "energy_parameter_history": [
+    58.47999954223633
+  ],
+  "vmc_energy_history": [],
+  "alpha_initial": 0.497,
+  "alpha_final": 0.4970000088214874,
+  "alpha_history": [
+    0.4970000088214874
+  ],
+  "beta": 2.82843,
+  "energy_std_val_final": 32.166860418444436,
+  "learning_rate": 0.0025,
+  "final_learning_rate": 0.0024875,
+  "energy_mean_val_final": -4.194048881530762,
+  "energy_var_val_final": 1034.7069091796875,
+  "energy_mean_val_history": [
+    -4.194048881530762
+  ],
+  "energy_std_val_history": [
+    32.1668586730957
+  ],
+  "energy_var_val_history": [
+    1034.7069091796875
+  ],
+  "epochs": [
+    0,
+    1
+  ],
+  "train_loss": [
+    32739.0712890625,
+    4562.9310302734375
+  ],
+  "val_loss": [
+    4962.22607421875
+  ],
+  "epochs_val": [
+    0
+  ]
+}

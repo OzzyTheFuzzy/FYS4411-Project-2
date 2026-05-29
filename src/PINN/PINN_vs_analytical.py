@@ -118,7 +118,7 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
     V_sum = 0.0
     V_coulomb_sum = 0.0
     trainer = Training(model)
-
+    all_energies = []
     if full == False:
 
         positions_i = torch.tensor(positions[-10_000:],dtype=torch.float32,device=device,requires_grad=True,)
@@ -126,10 +126,12 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
         E_L, E_K, V, V_coulomb = trainer.energy_model(positions_i)
         
         E_i   = E_L.detach().cpu().numpy().reshape(-1)
+        all_energies.append(E_i)
+
         E_K_i = E_K.detach().cpu().numpy().reshape(-1)
         V_i   = V.detach().cpu().numpy().reshape(-1)
         V_coulomb_i = V_coulomb.detach().cpu().numpy().reshape(-1)
-
+        
         E_L_mean = E_L.mean().item()
         E_K_mean = E_K.mean().item()
         V_mean = V.mean().item()
@@ -147,7 +149,7 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
         plot_energies(E_i, E_ana)
 
 
-        return E_L_mean, E_std, E_L
+        return E_L_mean, E_std, np.array(all_energies)
         
     # if full = True we evaluate the energy on the full dataset (can be very slow, so we do it in batches and only save a subset of energies for plotting)
     all_energies = []

@@ -26,6 +26,7 @@ class Training(LossFunctions):
         self.V_array = []
         self.V_coulomb_array = []
         self.energy_val_std_array =[]
+        self.vmc_energy_list = []
         """
         # Initialize adaptive weights for each loss component
         self.weights = {}
@@ -96,7 +97,7 @@ class Training(LossFunctions):
 
         # Generate fixed validation data
         N_validation = self.val_points
-        data_initializer_val = InitializeData(self.model.N, self.model.dim, device=self.device, hard_core_radius=self.model.a, initialize_gaussian=data_initializer.initialize_gaussian, omega_z=data_initializer.omega_z)
+        data_initializer_val = InitializeData(self.model.N, self.model.dim, device=self.device, interacting_strength=self.model.a, initialize_gaussian=data_initializer.initialize_gaussian, omega_z=data_initializer.omega_z)
         val_positions = data_initializer_val.initialize_pde(N_validation, width=self.val_width, seed=self.val_seed)
         print("x std:", val_positions[:, :, 0].std())
         print("y std:", val_positions[:, :, 1].std())
@@ -197,13 +198,17 @@ class Training(LossFunctions):
             
             # For evaluating the energy of the model with VMC sampled configurations
             if epoch % 50 == 0:
+                if epoch==0:
+                    continue
                 print(f"self.model.beta = {self.model.beta}")
-                positions = load_pos_general(self.model.a, self.model.beta, self.model.N, self.model.dim)
-                positions_i = torch.tensor(positions[-5000:],dtype=torch.float32,device=self.device,requires_grad=True,)
+                positions_vmc = load_pos_general(self.model.a, self.model.beta, self.model.N, self.model.dim)
+                positions_i = torch.tensor(positions_vmc[-5000:],dtype=torch.float32,device=self.device,requires_grad=True,)
                 vmc_energy, E_K_vmc, V_vmc, V_coulomb_vmc = self.energy_model(positions_i)
+                self.vmc_energy_list.append(vmc_energy.mean().item())
+                print('Estimating energy on VMC samples \n')
+                print(f"Epoch {epoch}: E_PINN = {vmc_energy.mean().item():.4f}+- {vmc_energy.std().item():.4f}, E_K = {E_K_vmc.mean().item():.4f}, V = {V_vmc.mean().item():.4f}, V_c = {V_coulomb_vmc.mean().item():.4f}")
                 print('\n')
-                print(f"VMC Energy = {vmc_energy.mean().item():.4f}+- {vmc_energy.std().item():.4f}, E_K = {E_K_vmc.mean().item():.4f}, V = {V_vmc.mean().item():.4f}, V_coulomb = {V_coulomb_vmc.mean().item():.4f} Epoch {epoch}: ")
-                print('\n')
+                del positions_vmc, positions_i, vmc_energy, E_K_vmc, V_vmc, V_coulomb_vmc
             del positions, batch_array
 
             if use_scheduler:
