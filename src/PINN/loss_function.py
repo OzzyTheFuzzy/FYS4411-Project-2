@@ -73,8 +73,15 @@ class LossFunctions(nn.Module):
             dtype=self.energy.dtype)
 
         if self.model.N==10 and self.model.dim==3 and self.model.a == 1.0 and self.model.beta!=1.0:
-            E_RBM = 58.09  # obtained from VMC sampling with the initial model, can be adjusted based on the specific system and model initialization
+            E_RBM = 58.48  # obtained from RBM
             
+            self.energy.data = torch.tensor(
+                E_RBM,
+                device=self.device,
+                dtype=self.energy.dtype
+            )
+        if self.model.N==2 and self.model.dim==3 and self.model.a == 1.0 and self.model.beta!=1.0:
+            E_RBM = 5.688  # obtained from RBM
             self.energy.data = torch.tensor(
                 E_RBM,
                 device=self.device,
@@ -160,12 +167,29 @@ class LossFunctions(nn.Module):
         """
         r_ij_abs, r_ij= distance_and_distance_vec(positions)   # (B, N, N), (B, N, N, dim)
         iu = torch.triu_indices(self.model.N, self.model.N, offset=1, device=positions.device)
+        pair_dist = r_ij_abs[:, iu[0], iu[1]]  # (B, 45)
+        min_rij = pair_dist.min(dim=1).values  # (B,)
 
-        pair_dist = r_ij_abs[:, iu[0], iu[1]]  
-  
-        eps=1e-8
-        V_coulomb = self.model.a * torch.sum(1.0 / (pair_dist + eps), dim=1, keepdim=True)  # shape (B, 1)
-   
+        """
+        print("Number of configs:", pair_dist.shape[0])
+        print("Number of pairs per config:", pair_dist.shape[1])
+
+        print("Mean min pair distance:", min_rij.mean().item())
+        print("Median min pair distance:", min_rij.median().item())
+        print("Smallest pair distance:", pair_dist.min().item())
+
+        for cutoff in [0.30, 0.40, 0.50, 0.60]:
+            close_pairs = (pair_dist < cutoff).sum().item()
+            configs_close = (min_rij < cutoff).sum().item()
+
+            print(f"\nr_ij < {cutoff}")
+            print("close pairs:", close_pairs)
+            print("fraction of all pairs:", close_pairs / pair_dist.numel())
+            print("configs with close pair:", configs_close)
+            print("fraction of configs:", configs_close / pair_dist.shape[0])
+        """
+        
+        V_coulomb = torch.sum(1.0 / pair_dist, dim=1, keepdim=True)  # (B, 1)
         return V_coulomb
     
     def energy_model(self, positions, total=False):

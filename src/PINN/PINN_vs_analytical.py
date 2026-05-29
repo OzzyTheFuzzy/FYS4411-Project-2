@@ -7,40 +7,19 @@ from training import Training
 from model import SE_Model, reconstruct_SE_model
 from pathlib import Path
 from scipy.integrate import trapezoid
-
+from load_positions import load_pos_general
 
 project_root = Path(__file__).resolve().parent
 
-data_dir = project_root / "positions_energy_data"
+data_dir = project_root / "positions"
 model_dir = project_root / "models"
+
+# Helper functions for loading results, plotting, and reconstructing models from checkpoints
 
 def load_results(model_name):
     with open(f"logs/{model_name}.json", "r") as f:
         results = json.load(f)
     return results
-
-def load_pos_memmap(n_samples, N, d, beta=None, a=0.0):
-    """
-    Load memmap WITHOUT loading into RAM.
-    """
-
-    beta_str = "None" if beta is None else str(beta)
-    a_str = str(a)
-
-    filename = f"r_all_N{N}_d{d}_beta{beta_str}_a{a_str}.dat"
-    path = data_dir / filename
-
-    if not path.exists():
-        raise FileNotFoundError(f"Could not find file: {path}")
-
-    r_all = np.memmap(
-        path,
-        dtype="float64",
-        mode="r",
-        shape=(n_samples, N, d),
-    )
-
-    return r_all
 
 
 def plot_loss_curves(model_name):
@@ -94,27 +73,6 @@ def model_reconstructer(model_name, nparticles, dim, a=0.0, beta=None, omega_z=1
     return model
 
 
-def load_positions_and_energy(filename, device="cpu", index=None):
-    """
-    if you have the filename and only want pos and energy
-    """
-    data = np.load(data_dir / f"{filename}.npz")
-    
-    r_all = data["r_all"]
-    n_samples, N, dim = r_all.shape 
-
-    E_ana = data["E"]
-
-    positions = torch.tensor(r_all, dtype=torch.float32, device=device)
-    energies = torch.tensor(E_ana, dtype=torch.float32, device=device).reshape(-1, 1)
-
-    if index is not None:
-        positions = positions[index:index+1]
-        energies = energies[index:index+1]
-
-    return positions, energies.detach().cpu().numpy(), n_samples, N, dim # retrieve positions with torch and and return energies as numpy for plotting
-
-
 def plot_energies(PINN_energies, energies):
     
     samples = np.linspace(0,len(PINN_energies) ,len(PINN_energies))
@@ -129,37 +87,30 @@ def plot_energies(PINN_energies, energies):
 
 def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, omega_ho=1.0, device="cpu", full=False):
     energies_for_plot = []
-
-    if beta == 1.0:
-        E_ana= N * d / 2
+    
+    if a==0.0:
+       
+        if beta == 1.0:
+            E_ana = N * d / 2
+        else:
+            E_ana = N * (1 + beta / 2)
     else:
-        E_ana = N * (1 + beta / 2)
-
+        if N == 2 and d == 3 and a == 1.0 and beta != 1.0:
+            E_ana = 5.692  # obtained from RBM, can be adjusted based on the specific system and model initialization
+        elif N == 10 and d == 3 and a == 1.0 and beta != 1.0:
+            E_ana = 58.48  # obtained from RBM, can be adjusted based on the specific system and model initialization
+        else:
+            raise ValueError("Analytical energy not known for this combination of parameters")
+        
     max_plot_points = 10000
-    batch_size = 10000
+    batch_size      = 10000 # to avoid memory issues when evaluating the energy on a large number of samples
     model_name=f'{model_name}.pth'
 
     model = model_reconstructer(model_name, N, d, a=a, beta=beta, omega_z=omega_z, omega_ho=omega_ho)
 
-    if beta ==1.0:
-        beta=None
-        positions= load_pos_memmap(
-            n_samples=samples,
-            N=N,
-            d=d,
-            beta=beta,
-            a=a,
-        )
+    positions = load_pos_general(a, beta, N, d)
 
-    else:
-        positions= load_pos_memmap(
-            n_samples=samples,
-            N=N,
-            d=d,
-            beta=beta,
-            a=a,
-        )
-
+    print(f"Loaded positions with shape: {positions.shape}")
     E_sum = 0.0
     E2_sum = 0.0
     count = 0
@@ -171,9 +122,9 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
     if full == False:
 
         positions_i = torch.tensor(positions[-10_000:],dtype=torch.float32,device=device,requires_grad=True,)
-
+        
         E_L, E_K, V, V_coulomb = trainer.energy_model(positions_i)
-
+        
         E_i   = E_L.detach().cpu().numpy().reshape(-1)
         E_K_i = E_K.detach().cpu().numpy().reshape(-1)
         V_i   = V.detach().cpu().numpy().reshape(-1)
@@ -188,16 +139,18 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
         E_std = np.sqrt(max(E_L_var, 0.0))
         print(f"Using last 10,000 positions for quick energy evaluation:")
         print(f"N = {N}, d = {d}, beta = {beta}, a = {a}")
-        print(f"PINN E_mean = {E_L_mean:.8f} and E_ana = {E_ana:.8f}")
-        print(f"PINN E_std  = {E_std:.8f}")
-        print(f"PINN E_K_mean = {E_K_mean:.8f}")
-        print(f"PINN V_mean = {V_mean:.8f}")
-        print(f"PINN V_coulomb_mean = {V_coulomb_mean:.8f}")
+        print(f"PINN E_mean = {E_L_mean:.5f} and E_estimate = {E_ana:.5f}")
+        print(f"PINN E_std  = {E_std:.5f}")
+        print(f"PINN E_K_mean = {E_K_mean:.5f}")
+        print(f"PINN V_mean = {V_mean:.5f}")
+        print(f"PINN V_coulomb_mean = {V_coulomb_mean:.5f}")
         plot_energies(E_i, E_ana)
+
 
         return E_L_mean, E_std, E_L
         
     # if full = True we evaluate the energy on the full dataset (can be very slow, so we do it in batches and only save a subset of energies for plotting)
+    all_energies = []
     for start in range(0, samples, batch_size):
         stop = min(start + batch_size, samples)
 
@@ -211,6 +164,9 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
         E_L, E_K, V, V_coulomb = trainer.energy_model(positions_i)
 
         E_i = E_L.detach().cpu().numpy().reshape(-1)
+
+        # store ALL energies
+        all_energies.append(E_i)
         E_K_i = E_K.detach().cpu().numpy().reshape(-1)
         V_i = V.detach().cpu().numpy().reshape(-1)
         V_coulomb_i = V_coulomb.detach().cpu().numpy().reshape(-1)
@@ -245,8 +201,9 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
     print(f"PINN V_mean = {V_mean:.8f}")
     print(f"PINN V_coulomb_mean = {V_coulomb_mean:.8f}")
     plot_energies(energies_for_plot, E_ana)
+    print(np.array(all_energies).shape)
+    return E_mean, E_std, np.array(all_energies)
 
-    return E_mean, E_std
 
 
 

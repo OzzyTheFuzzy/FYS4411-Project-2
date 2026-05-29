@@ -140,7 +140,7 @@ class SE_Model(nn.Module):
         else:
             self.register_buffer("alpha", torch.tensor(alpha, dtype=torch.float32))
         
-        self.register_buffer("beta", torch.tensor(beta, dtype=torch.float32))
+        self.beta = beta
         self.trainable_energy = trainable_energy
 
         if trainable_beta_jastrow:
