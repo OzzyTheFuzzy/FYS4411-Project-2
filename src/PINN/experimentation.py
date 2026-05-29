@@ -9,7 +9,7 @@ from PINN_vs_analytical import *
 from blocking import blocking_error, plot_blocking
 
 # Configuration
-width = 1.3     # Width of the Gaussian distribution for sampling collocation points
+width = 1.33     # Width of the Gaussian distribution for sampling collocation points
 a     = 1.0     # a=1.0  for strength of the Coulomb interactions   
 N     = 10        # Number of particles (dimensions)
 dim   = 3        # Dimensionality of the particles
@@ -20,23 +20,23 @@ beta_jastrow = 0.5 # Wavefunction parameter when interactions are included
 alpha   = 0.497000 # Wavefunction parameter for the single-particle part of the wavefunction
 
 #  Training parameters
-training_points = 4000
-seed            = 17
-epochs      = 1000
-batch_size  = 500
+training_points = 2000
+seed        = 17
+epochs      = 500
+batch_size  = 50
 num_batches = training_points // batch_size
 val_points  = 2000
 val_width   = width # width of the Gaussian distribution for sampling validation collocation points
 val_seed    = 42 # random seed for sampling validation collocation points
 gamma       = 0.995 # learning rate decay factor for scheduler, set to a value close to 1 for smoother convergence
-lr          = 2.5e-3 # learning rate for optimizer. Will be tuned during training by scheduler for smoother convergence
-lr_E        = 1e-5 # learning rate for energy parameter, set lower than lr for smoother convergence towards true GS energy
+lr          = 5e-3 # learning rate for optimizer. Will be tuned during training by scheduler for smoother convergence
+lr_E        = 5e-2 # learning rate for energy parameter, set lower than lr for smoother convergence towards true GS energy
 lr_alpha    = 1e-6 # learning rate for alpha parameter, set lower than
 trainable_alpha = False # whether to train the energy parameter alpha or keep it fixed during training
-trainable_energy = False # whether to train the energy parameter or keep it fixed during training
+trainable_energy = True # whether to train the energy parameter or keep it fixed during training
 coulomb_init    = False # if we do not have hard coded energy results for the given config, use coulomb initialization
-initialize_gaussian = False
-trainable_beta_jastrow = False
+initialize_gaussian = True  #initialize training points with Gaussian or with another method
+trainable_beta_jastrow = False # whether to train the beta_jastrow parameter or keep it fixed during training
 lr_beta_jastrow = 1e-5
 
 model_name      = f"{N}N_d{dim}_beta{beta}_a{a}_width{width}_IG{initialize_gaussian}" # name for saving model and logs
@@ -54,8 +54,8 @@ def train_and_evaluate():
         "dim": dim,
         "N": N,
         "rho_hidden": [32, 32], 
-        "phi_hidden": [4, 4], #
-        "eta_hidden": [4, 4], #
+        "phi_hidden": [8, 8], #
+        "eta_hidden": [8, 8], #
         "phi_output": 4,
         "eta_output": 4,
         "activation_function": nn.GELU(),
@@ -167,7 +167,7 @@ def train_and_evaluate():
     print(f"Saved model to models/{model_name}.pth")
     print(f"Saved logs to logs/{model_name}.json")
 
-train_and_evaluate() # uncomment for training 
+#train_and_evaluate() # uncomment for training 
 plot_loss_curves(model_name) # for plotting the loss during training
 
 # vmc samples from .dat file
@@ -177,7 +177,7 @@ if a==0.0:
 else:
     samples = 524288
 
-full = False # set true for eval over many samples
+full = True# set true for eval over many samples
 E_mean, E_std, E_L= energy_vmc_and_plot(model_name, N=N, d=dim, samples=samples, beta=beta, a=a, omega_z=omega_z, omega_ho=omega_ho, full=full) # for evaluating the energy of the trained model
 block_variance, block_error, B_list, n_list = blocking_error(E_L.flatten()) # for performing blocking analysis on the energies obtained from the trained model
 
