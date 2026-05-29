@@ -9,18 +9,18 @@ from PINN_vs_analytical import *
 from blocking import blocking_error, plot_blocking
 
 # Configuration
-width = 1.0     # Width of the Gaussian distribution for sampling collocation points
+width = 1.0055     # Width of the Gaussian distribution for sampling collocation points
 a     = 0.0     # a=1.0  for strength of the Coulomb interactions   
-N     = 1        # Number of particles (dimensions)
-dim   = 1        # Dimensionality of the particles
+N     = 10        # Number of particles (dimensions)
+dim   = 3        # Dimensionality of the particles
 omega_ho = 1.0        # Frequency of the harmonic trap in the x and y directions
-beta     = 1.0   #  2.82843 #set beta=1.0 for isotropic case
+beta     = 2.82843  #set beta=1.0 for isotropic case
 omega_z  = beta       # Frequency of the harmonic trap in the z-direction. Set equal to beta for antisotropic case, and to 1 for isotropic cas
 beta_jastrow = 0.0 # Wavefunction parameter when interactions are included 
 alpha   = 0.5 # Wavefunction parameter for the single-particle part of the wavefunction
 
 #  Training parameters
-training_points = 2000
+training_points = 4000
 seed            = 17
 epochs      = 1000
 batch_size  = 250
@@ -28,7 +28,7 @@ num_batches = training_points // batch_size
 val_points  = 2000
 val_width   = width # width of the Gaussian distribution for sampling validation collocation points
 val_seed    = 42 # random seed for sampling validation collocation points
-gamma       = 0.99 # learning rate decay factor for scheduler, set to a value close to 1 for smoother convergence
+gamma       = 0.995 # learning rate decay factor for scheduler, set to a value close to 1 for smoother convergence
 lr          = 1e-3 # learning rate for optimizer. Will be tuned during training by scheduler for smoother convergence
 lr_E        = 1e-2 # learning rate for energy parameter, set lower than lr for smoother convergence towards true GS energy
 lr_alpha    = 1e-6 # learning rate for alpha parameter, set lower than
@@ -40,7 +40,7 @@ trainable_beta_jastrow = False
 lr_beta_jastrow = 1e-5
 
 model_name      = f"{N}N_d{dim}_beta{beta}_a{a}_width{width}_IG{initialize_gaussian}" # name for saving model and logs
-
+#model_name="2N_d1_beta1.0_a0.0_width0.95_IGTrue"
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -53,9 +53,9 @@ def train_and_evaluate():
     model_config = {
         "dim": dim,
         "N": N,
-        "rho_hidden": [32,32], 
-        "phi_hidden": [4,4], #
-        "eta_hidden": [4,4], #
+        "rho_hidden": [32, 32], 
+        "phi_hidden": [4, 4], #
+        "eta_hidden": [4, 4], #
         "phi_output": 4,
         "eta_output": 4,
         "activation_function": nn.GELU(),
@@ -142,7 +142,7 @@ def train_and_evaluate():
         "alpha_initial": float(model_config["alpha"]),
         "alpha_final": float(model.alpha.detach().cpu().item()),
         "alpha_history": list(np.array(trainer.alpha_array).tolist()),
-        "beta": float(model.beta.detach().cpu().item()),
+        "beta": float(model.beta),
         "energy_std_val_final": float(np.sqrt(trainer.energy_val_var[-1])),
 
         "learning_rate": float(lr),
@@ -167,7 +167,7 @@ def train_and_evaluate():
     print(f"Saved model to models/{model_name}.pth")
     print(f"Saved logs to logs/{model_name}.json")
 
-#train_and_evaluate() # uncomment for training 
+train_and_evaluate() # uncomment for training 
 plot_loss_curves(model_name) # for plotting the loss during training
 
 # vmc samples from .dat file
@@ -177,8 +177,8 @@ if a==0.0:
 else:
     samples = 524288
 
-full=False # set true for eval over many samples
+full = True # set true for eval over many samples
 E_mean, E_std, E_L= energy_vmc_and_plot(model_name, N=N, d=dim, samples=samples, beta=beta, a=a, omega_z=omega_z, omega_ho=omega_ho, full=full) # for evaluating the energy of the trained model
-block_variance, block_error, B_list, n_list = blocking_error(E_L.detach().cpu().numpy().flatten()) # for performing blocking analysis on the energies obtained from the trained model
+block_variance, block_error, B_list, n_list = blocking_error(E_L.flatten()) # for performing blocking analysis on the energies obtained from the trained model
 
 plot_blocking(B_list, block_error, beta=beta, name_of_model=model_name, N=N, a=a) # for plotting the blocking analysis results

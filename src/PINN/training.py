@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader, TensorDataset #for training data loadin
 
 from loss_function import LossFunctions
 from initialize_data import InitializeData
-
+from load_positions import load_pos_general
 
 class Training(LossFunctions):
     """
@@ -98,7 +98,9 @@ class Training(LossFunctions):
         N_validation = self.val_points
         data_initializer_val = InitializeData(self.model.N, self.model.dim, device=self.device, hard_core_radius=self.model.a, initialize_gaussian=data_initializer.initialize_gaussian, omega_z=data_initializer.omega_z)
         val_positions = data_initializer_val.initialize_pde(N_validation, width=self.val_width, seed=self.val_seed)
-        
+        print("x std:", val_positions[:, :, 0].std())
+        print("y std:", val_positions[:, :, 1].std())
+        print("z std:", val_positions[:, :, 2].std())
         if self.model.a > 0.0: #finetunes the initial energy for coulomb interactions
             if coulomb_init:
                 self.initialize_energy_with_coulomb(val_positions)
@@ -192,7 +194,16 @@ class Training(LossFunctions):
                 print(f"Energy model {self.energy.item():.4f}")
 
                 del pde_val_loss_value
-
+            
+            # For evaluating the energy of the model with VMC sampled configurations
+            if epoch % 50 == 0:
+                print(f"self.model.beta = {self.model.beta}")
+                positions = load_pos_general(self.model.a, self.model.beta, self.model.N, self.model.dim)
+                positions_i = torch.tensor(positions[-5000:],dtype=torch.float32,device=self.device,requires_grad=True,)
+                vmc_energy, E_K_vmc, V_vmc, V_coulomb_vmc = self.energy_model(positions_i)
+                print('\n')
+                print(f"VMC Energy = {vmc_energy.mean().item():.4f}+- {vmc_energy.std().item():.4f}, E_K = {E_K_vmc.mean().item():.4f}, V = {V_vmc.mean().item():.4f}, V_coulomb = {V_coulomb_vmc.mean().item():.4f} Epoch {epoch}: ")
+                print('\n')
             del positions, batch_array
 
             if use_scheduler:

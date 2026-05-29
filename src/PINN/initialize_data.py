@@ -46,7 +46,7 @@ class InitializeData:
         self.omega_z = omega_z if omega_z is not None else 1.0
         self.sigma_x = 1 / np.sqrt(2) 
         self.sigma_y = 1/ np.sqrt(2)
-        self.sigma_z = 1 / np.sqrt(2 * omega_z)
+        self.sigma_z = 1 / np.sqrt(2*omega_z)
         self.initialize_gaussian = initialize_gaussian
 
     def initialize_pde(self, batch_size, width, seed):
@@ -91,7 +91,7 @@ class InitializeData:
         n1 = total_needed//2
         n2 = total_needed//2
 
-        # No hard core 
+        # No interactions 
         if self.a == 0.0:
 
             candidates_1 = torch.randn(
@@ -103,7 +103,7 @@ class InitializeData:
                 dtype=self.dtype,
             ) * sigmas
 
-            candidates_2 = 1.5 * torch.randn(
+            candidates_2 = torch.randn(
                 n2,
                 self.N,
                 self.dim,
