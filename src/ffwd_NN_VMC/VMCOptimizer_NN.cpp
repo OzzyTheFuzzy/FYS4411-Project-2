@@ -46,30 +46,24 @@ std::vector<double> VMCOptimizer_NN::optimize(std::unique_ptr<WaveFunction> wf_t
         m_cfg.helpDecay,
         m_actFun
     );
-    NeuralNetwork* nnptr = &(wf_nn->net());
+    NeuralNetwork* nnptr = &(wf_nn->net());    // handy pointer
     torch::optim::Adam optimizer(
         nnptr->parameters(),
         torch::optim::AdamOptions(m_cfg.lr).betas({ 0.9, 0.999 }).eps(1e-6)
     );
-    m_hamiltonian->set_percStrength(0);
+    m_hamiltonian->set_percStrength(0); // turn off interactions
     auto system = std::make_unique<System>(
         std::move(m_hamiltonian),
-        std::move(wf_train)
+        std::move(wf_train) // we first create it with wf_train to test the expected non-interacting energy
     );
     std::cout << "Created NN system\n";
-
     system->setParticles(
         setupRandomUniformInitialState(m_cfg.numberOfDimensions, m_cfg.numberOfParticles, *rng)
     );
     system->setSolver(m_solverFactory(std::move(rng)));
     system->runEquilibrationSteps(m_cfg.timeStep, m_cfg.equilibrationSteps);
-    // save positions
-    // std::vector<std::vector<double>> saved_pos = std::vector<std::vector<double>>(m_numberOfParticles);
-    // for (unsigned i = 0; i < m_numberOfParticles; i++)
-    //     for (unsigned j = 0; j < m_numberOfDimensions; j++)
-    //         saved_pos[i].push_back(system->getParticles()[i]->getPosition()[j]);
-    auto tempsampler = system->runMetropolisSteps(m_cfg.timeStep, m_cfg.metropolisSteps * 10); // trying out non interactive analytical wavefunction
-    std::cout << "DEBUG: tempsampler energy = " << tempsampler->getEnergy() << " +- " << tempsampler->getError() << std::endl;
+    auto tempsampler = system->runMetropolisSteps(m_cfg.timeStep, m_cfg.metropolisSteps * 10); // trying out non-interacting analytical wavefunction
+    std::cout << "DEBUG: energy found with provided wavefunction = " << tempsampler->getEnergy() << " +- " << tempsampler->getError() << std::endl;
     wf_train = std::move(system->setWaveFunction(std::move(wf_nn)));    // swap wavefunctions
     // -------- PRE-TRAINING --------
     // print log header
@@ -124,6 +118,7 @@ std::vector<double> VMCOptimizer_NN::optimize(std::unique_ptr<WaveFunction> wf_t
     }
     std::cout << "Running Adam optimization with interactions...\n";
     *m_outfile << "# Running Adam optimization with interactions...\n";
+    // reset patience edits
     set_lr(optimizer, m_cfg.lr);
     patience_counter = 0; times_reached_plateau = 0;
     min_improvement = m_cfg.min_improvement; best_val = 0;
@@ -154,7 +149,7 @@ std::vector<double> VMCOptimizer_NN::optimize(std::unique_ptr<WaveFunction> wf_t
         // proceed with optimization
         optimizer.zero_grad();
         nnptr->setGrads(dEdW);
-        torch::nn::utils::clip_grad_norm_(nnptr->parameters(), 10);
+        torch::nn::utils::clip_grad_norm_(nnptr->parameters(), 10);  // for stability
         optimizer.step();
     }
     std::cout << "\nTraining complete.\n";

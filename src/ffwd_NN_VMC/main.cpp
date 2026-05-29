@@ -93,47 +93,6 @@ void printLogHeader(const runConfig& cfg, std::ofstream& globalLog, tm* now_tm) 
 int main(int argc, char* argv[]) {
     runConfig cfg = loadConfig("config.json");
 
-    /*
-    // --- Parameters ---
-    string hamiltonianType = "CoulombHO";  // HarmonicOscillator or RepulsiveHO or CoulombHO
-    string waveFunctionTrainType = "EllipticGaussian"; // SimpleGaussian or EllipticGaussian or RepEllipticGaussian
-    string waveFunctionType = "NN_envelope"; // SimpleGaussian or EllipticGaussian or RepEllipticGaussian or NN_envelope
-    string solverType = "MetropolisHastings"; // Metropolis or MetropolisHastings
-    bool preferAnalytic = false;
-    bool useCache = false;
-    unsigned int numberOfDimensions = 3;
-    unsigned int numberOfParticles = 3;
-    unsigned int numberOfMetropolisSteps = 10e3;
-    unsigned int numberOfEquilibrationSteps = 1e4;
-    unsigned int finalMClog2steps = log2(1e5);
-    unsigned int onebodyDensitySteps = 1e5;
-    double omega = 1.0;
-    double omega_z = 2.8243;
-    double repulsive_a_factor = 0.0043;
-    double repulsive_strength = numeric_limits<double>::infinity();
-    double timeStep = 0.15;     // for brute force Metropolis, this corresponds to stepLength
-    double onebodyDensity_rMax = 3.5;
-    unsigned int onebodyDensity_nBins = 50;
-    double BFGS_tol = 1e-5;     // NLopt's xtol_rel relative tolerance criterion for optimization
-    // Next ones are parameters relevant for NNs
-    int Nhid = 12;
-    string activationFunctionType = "tanh"; // gelu or tanh or relu or sigmoid
-    double helpDecay = 0.4; // typically 0 < helpDecay <= 0.5
-    double lr = 5e-2;     // 5e-2 looked good
-    double Adam_ktol = 0.99;
-    int max_patience = 80;
-    double min_improvement = 0.05;
-    int nPretrainSteps = 1000;   // maximize K
-    int nEnergySteps = 7000;  // minimize E
-    int nAdiabSteps = 1000;  // adiabatic interaction addition
-    double maxStrength = 1;   // maximum coulomb potential strength
-
-    // int seed = 0;    // if seed == 0, seed is chosen randomly at each RNG construction
-    int seed = chrono::system_clock::now().time_since_epoch().count();
-    // vector<double> initialParams = { 0.75 };
-    vector<double> initialParams = { 0.50, 2.8243 };
-    */
-
     chrono::high_resolution_clock::time_point watch_start, watch_end;
     chrono::duration<double> elapsedTime;
 

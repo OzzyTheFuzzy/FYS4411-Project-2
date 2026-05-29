@@ -9,8 +9,8 @@ cd build_release
 # Run CMake to create a Release Makefile
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$PWD/../libtorch ../
 
-# No need to generate docs twice
-# make doc > /dev/null
+# Generate documentation using Doxygen
+make doc > /dev/null
 
 # Make the Makefile using x threads
 make -j4
