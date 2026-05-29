@@ -1,0 +1,2 @@
+# N D mode stepParam replicas energy acceptance cpu_seconds energy_std energy_stderr
+2 2 is 0.02 4 3.17017258426 0.999145030975 5.2220786455 0.0145166171119 0.00725830855596
