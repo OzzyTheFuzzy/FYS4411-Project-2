@@ -1,3 +1,0 @@
-/home/davide/GitHub/computational_physics_2_2026/FYS4411-Project-2/src/NN_VMC/P1_Teresa/build_release/CMakeFiles/vmc.dir
-/home/davide/GitHub/computational_physics_2_2026/FYS4411-Project-2/src/NN_VMC/P1_Teresa/build_release/CMakeFiles/edit_cache.dir
-/home/davide/GitHub/computational_physics_2_2026/FYS4411-Project-2/src/NN_VMC/P1_Teresa/build_release/CMakeFiles/rebuild_cache.dir
