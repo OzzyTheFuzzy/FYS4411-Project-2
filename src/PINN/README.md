@@ -1,6 +1,23 @@
 # PINN
 
-This folder contains the Physics-Informed Neural Network (PINN) implementation used to compute ground-state energies of the harmonic oscillator trap, with and without interactions.
+This folder contains the Physics-Informed Neural Network (PINN) implementation used to train PINN models and compute local energies of the harmonic oscillator trap, with and without Coulomb interactions.
+
+# Important:
+The VMC position files are not included in the repository due to their size. 
+
+# Without interactions:
+Particle configurations can be generated using the VMC program sample_pos_2.py from Project 1 in the dev_2 branch.
+The positions should be placed in \texttt{PINN/positions/} before running the PINN energy evaluation.
+
+Find sample_pos_2.py at https://github.com/OzzyTheFuzzy/FYS4411-Project-1/tree/dev_2/src
+
+# With interactions:
+For the case with interactions you can
+From FY4411-Project-2/src/NN_VMC/RBM run: 
+make clean
+./compile_project
+./vmc is 0.02 10 3 --interact --replicas 1 --opt rbmadam --lr 0.005 --Nh 8 --gamma 2.82843
+./vmc is 0.02 2 3 --interact --replicas 1 --opt rbmadam --lr 0.1 --Nh 2 --gamma 2.82843
 
 ## Main Files
 
@@ -15,12 +32,16 @@ Physical parameters:
 * `a`: interaction strength / hard-core radius
 * `beta`: anisotropy parameter 
 
+
 Training parameters:
 
-* `training_points`
-* `epochs`
-* `batch_size`
+* `training_points` 
+* `epochs`         
+* `batch_size`     
 * `lr`
+* `width` : width of the gaussian sampler
+* `initialize_gaussian` : set True for gaussian sampling and False for other sampler method
+* `trainable_energy` : set True for trainable eigenvalue $E_\theta$
 
 To train a model, uncomment:
 
@@ -49,9 +70,9 @@ The script:
 Generates the training and validation collocation points used by the PINN.
 It supports:
 
-* non-interacting systems (`a = 0`), where positions are sampled from Gaussian distributions.
-* interacting systems, where proposals are sampled from diffrerent gaussians and where proposals are filtered with a minimum-distance constraint,
-* an alternative ellipsoidal sampler (`particle_pos2`) for the anisotropic traps.
+* non-interacting systems (`a = 0`), where positions are sampled from a Gaussian distribution.
+* interacting systems, where proposals are sampled from a Gaussian and where proposals are filtered with a minimum-distance constraint,
+* an alternative ellipsoidal sampler (`particle_pos2`) for the anisotropic trap.
 
 
 ### `model.py`

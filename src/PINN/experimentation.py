@@ -8,39 +8,42 @@ from model import SE_Model
 from PINN_vs_analytical import *
 from blocking import blocking_error, plot_blocking
 
-# Configuration
-width = 1.3     # Width of the Gaussian distribution for sampling collocation points
+# Configuration parameters
+width = 1.33     # Width of the Gaussian distribution for sampling collocation points
 a     = 1.0     # a=1.0  for strength of the Coulomb interactions   
 N     = 10        # Number of particles (dimensions)
 dim   = 3        # Dimensionality of the particles
-omega_ho = 1.0        # Frequency of the harmonic trap in the x and y directions
-beta     = 2.82843  #set beta=1.0 for isotropic case
+beta     = 2.82843  #set beta=1.0 for isotropic case and beta=2.82843 for antisotropic case
+
 omega_z  = beta       # Frequency of the harmonic trap in the z-direction. Set equal to beta for antisotropic case, and to 1 for isotropic cas
 beta_jastrow = 0.5 # Wavefunction parameter when interactions are included 
-alpha   = 0.5 # Wavefunction parameter for the single-particle part of the wavefunction
+alpha    = 0.5      # Wavefunction parameter for the single-particle part of the wavefunction
+omega_ho = 1.0        # Frequency of the harmonic trap in the x and y directions
 
 #  Training parameters
-training_points = 1000
+trainable_energy = True # whether to train the energy parameter or keep it fixed during training
+initialize_gaussian = True #initialize training points with Gaussian set True. Set False for ellipsoid shell initialization
+
+training_points = 2000
 seed        = 17
 epochs      = 1000
 batch_size  = 50
 num_batches = training_points // batch_size
 val_points  = 2000
 val_width   = width # width of the Gaussian distribution for sampling validation collocation points
-val_seed    = 42 # random seed for sampling validation collocation points
+val_seed    = 42    # random seed for sampling validation collocation points
 gamma       = 0.995 # learning rate decay factor for scheduler, set to a value close to 1 for smoother convergence
 lr          = 5e-3 # learning rate for optimizer. Will be tuned during training by scheduler for smoother convergence
-lr_E        = 5e-2 # learning rate for energy parameter, set lower than lr for smoother convergence towards true GS energy
+lr_E        = 1e-3 # learning rate for energy parameter, set lower than lr for smoother convergence towards true GS energy
 lr_alpha    = 1e-6 # learning rate for alpha parameter, set lower than
 trainable_alpha = False # whether to train the energy parameter alpha or keep it fixed during training
-trainable_energy = False # whether to train the energy parameter or keep it fixed during training
 coulomb_init    = False # if we do not have hard coded energy results for the given config, use coulomb initialization
-initialize_gaussian = False  #initialize training points with Gaussian set True. Set False for ellipsoid shell initialization
 trainable_beta_jastrow = False # whether to train the beta_jastrow parameter or keep it fixed during training
 lr_beta_jastrow = 1e-5
 
-model_name      = f"{N}N_d{dim}_beta{beta}_a{a}_width{width}_IG{initialize_gaussian}" # name for saving model and logs
-#model_name="2N_d1_beta1.0_a0.0_width0.95_IGTrue"
+model_name      = f"{N}N_d{dim}_beta{beta}_a{a}_width{width}_IG{initialize_gaussian}test" # name for saving model and logs
+#model_name= f'write your specific model name here' # uncomment and write your specific model name for loading a trained model and plotting results
+
 def train_and_evaluate():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -167,8 +170,8 @@ def train_and_evaluate():
     print(f"Saved model to models/{model_name}.pth")
     print(f"Saved logs to logs/{model_name}.json")
 
-#train_and_evaluate() # uncomment for training 
-#plot_loss_curves(model_name, a=a) # for plotting the loss during training
+train_and_evaluate() # uncomment for training 
+plot_loss_curves(model_name, a=a) # for plotting the loss during training
 
 # vmc samples from .dat file
 if a==0.0:
