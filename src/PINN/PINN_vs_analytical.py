@@ -6,7 +6,6 @@ import numpy as np
 from training import Training
 from model import SE_Model, reconstruct_SE_model
 from pathlib import Path
-from scipy.integrate import trapezoid
 from load_positions import load_pos_general
 
 project_root = Path(__file__).resolve().parent
@@ -22,16 +21,16 @@ def load_results(model_name):
     return results
 
 
-def plot_loss_curves(model_name):
+def plot_loss_curves(model_name,a):
     results = load_results(model_name)
     
     loss = results["train_loss"]
     epochs = results["epochs"]
     val_loss = results["val_loss"]
     epochs_val = results["epochs_val"]
-    vmc_energy_history = results["vmc_energy_history"]
+    
     val_energy = results["energy_mean_val_history"]
-    epoch_energy=np.linspace(0, epochs_val[-1], len(vmc_energy_history))
+    
     # Plot loss curve
     plt.plot(epochs, loss, "o-", label="Training", color="blue")
     plt.plot(epochs_val, val_loss, "o-", label="Validation loss", color="red")
@@ -42,17 +41,35 @@ def plot_loss_curves(model_name):
     plt.title("Training and Validation Loss Curves")
     plt.legend()
     plt.show()
-    
-    plt.plot(epoch_energy, vmc_energy_history, "o-", label="VMC Energy", color="green")
-    plt.plot(epochs_val[1:], val_energy[1:], "o-", label="Validation Energy", color="red")
-    plt.xlabel("Epoch")
-    plt.xlim(0, epochs_val[-1])
-    plt.ylabel("Energy")
-    plt.ylim(0, max(max(vmc_energy_history), max(val_energy)) * 1.1)
-    plt.grid(True)
-    plt.title("VMC Energy During Training")
-    plt.legend()
-    plt.show()
+
+    if a!=0.0:
+        vmc_energy_history = results["vmc_energy_history"]
+        epoch_energy=np.linspace(0, epochs_val[-1], len(vmc_energy_history))
+        plt.plot(
+            epoch_energy, vmc_energy_history,
+            "-", label="VMC Energy",
+            color="green", linewidth=2.5, alpha=0.75, zorder=2
+        )
+
+        plt.plot(
+            epochs_val[1:], val_energy[1:],
+            "o--", label="Validation Energy",
+            color="red", linewidth=1.8, markersize=4,
+            markerfacecolor="none", zorder=3
+        )
+
+        plt.xlabel("Epoch")
+        plt.xlim(0, epochs_val[-1])
+        plt.ylabel("Energy")
+
+        ymax = max(max(vmc_energy_history), max(val_energy)) * 1.05
+        ymin = min(min(vmc_energy_history), min(val_energy)) * 0.95
+        plt.ylim(ymin, ymax)
+
+        plt.grid(True, alpha=0.3)
+        plt.title("VMC and Validation Energy During Training")
+        plt.legend()
+        plt.show()
 
 
 def model_reconstructer(model_name, nparticles, dim, a=0.0, beta=None, omega_z=1.0, omega_ho=1.0):
@@ -86,12 +103,20 @@ def model_reconstructer(model_name, nparticles, dim, a=0.0, beta=None, omega_z=1
     return model
 
 
-def plot_energies(PINN_energies, energies):
+def plot_energies(PINN_energies, energies,a):
     
     samples = np.linspace(0,len(PINN_energies) ,len(PINN_energies))
     plt.scatter(samples, PINN_energies,s=1,label="PINN", color="green")
-    plt.plot(energies, label="Analytical", color="red")
-    plt.title("PINN vs analytical energy")
+    ones=np.ones_like(samples)
+    e=energies*ones
+
+    if a==0.0:
+        plt.plot(samples, e, label=f"Analytical Energy = {energies:.4f}", color="red")
+        plt.title(f"PINN vs analytical energy")
+    else:
+        plt.plot(samples, e, label=f"RBM Energy = {energies:.4f}", color="red")
+        plt.title(f"PINN vs RBM energy")
+
     plt.xlabel("Sample #")
     plt.ylabel("Energy")
     plt.legend()
@@ -109,7 +134,7 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
             E_ana = N * (1 + beta / 2)
     else:
         if N == 2 and d == 3 and a == 1.0 and beta != 1.0:
-            E_ana = 5.692  # obtained from RBM, can be adjusted based on the specific system and model initialization
+            E_ana = 5.688  # obtained from RBM, can be adjusted based on the specific system and model initialization
         elif N == 10 and d == 3 and a == 1.0 and beta != 1.0:
             E_ana = 58.48  # obtained from RBM, can be adjusted based on the specific system and model initialization
         else:
@@ -149,17 +174,19 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
         E_K_mean = E_K.mean().item()
         V_mean = V.mean().item()
         V_coulomb_mean = V_coulomb.mean().item()
-        E_L_var = E_L.var().item()
+       
+        E_L_var = E_L.var(unbiased=False).item()
 
         E_std = np.sqrt(max(E_L_var, 0.0))
+        
         print(f"Using last 10,000 positions for quick energy evaluation:")
         print(f"N = {N}, d = {d}, beta = {beta}, a = {a}")
-        print(f"PINN E_mean = {E_L_mean:.5f} and E_estimate = {E_ana:.5f}")
-        print(f"PINN E_std  = {E_std:.5f}")
+        print(f"PINN E_mean = {E_L_mean:.5f} and E_estimate = {E_ana:.5f}") #estimate is from RBM-VMC unless a=0, then it is analytical energy
+        print(f"PINN E_std  = {E_std:.5f}, E_var = {E_L_var:.5f}" )
         print(f"PINN E_K_mean = {E_K_mean:.5f}")
         print(f"PINN V_mean = {V_mean:.5f}")
         print(f"PINN V_coulomb_mean = {V_coulomb_mean:.5f}")
-        plot_energies(E_i, E_ana)
+        plot_energies(E_i, E_ana,a=a)
 
 
         return E_L_mean, E_std, np.array(all_energies)
@@ -201,8 +228,10 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
         # delete for more memory
         del positions_i, E_L, E_K, V, V_coulomb
 
+    E_all = np.concatenate(all_energies)
     E_mean = E_sum / count
-    E_var = E2_sum / count - E_mean**2
+    E_var = E_all.var(ddof=0)
+    E_std = E_all.std(ddof=0)
     E_K_mean = E_K_sum / count
     V_mean = V_sum / count
     V_coulomb_mean = V_coulomb_sum / count
@@ -210,14 +239,14 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
 
     print("\npositions obtained")
     print(f"N = {N}, d = {d}, beta = {beta}, a = {a}")
-    print(f"PINN E_mean = {E_mean:.8f} and E_ana = {E_ana:.8f}")
-    print(f"PINN E_std  = {E_std:.8f}")
+    print(f"PINN E_mean = {E_mean:.8f} and E_estimate = {E_ana:.8f}")
+    print(f"PINN E_std  = {E_std}, E_var = {E_var}")
     print(f"PINN E_K_mean = {E_K_mean:.8f}")
     print(f"PINN V_mean = {V_mean:.8f}")
     print(f"PINN V_coulomb_mean = {V_coulomb_mean:.8f}")
-    plot_energies(energies_for_plot, E_ana)
-    print(np.array(all_energies).shape)
-    return E_mean, E_std, np.array(all_energies)
+    plot_energies(energies_for_plot, E_ana,a=a)
+   
+    return E_mean, E_std, np.concatenate(all_energies)
 
 
 
