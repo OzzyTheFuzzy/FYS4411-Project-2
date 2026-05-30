@@ -177,7 +177,7 @@ if a==0.0:
 else:
     samples = 524288
 
-full = True# set true for eval over many samples
+full = True # set true for eval over many samples
 E_mean, E_std, E_L= energy_vmc_and_plot(model_name, N=N, d=dim, samples=samples, beta=beta, a=a, omega_z=omega_z, omega_ho=omega_ho, full=full) # for evaluating the energy of the trained model
 block_variance, block_error, B_list, n_list = blocking_error(E_L.flatten()) # for performing blocking analysis on the energies obtained from the trained model
 
