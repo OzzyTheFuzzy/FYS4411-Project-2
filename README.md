@@ -17,16 +17,9 @@ FYS4411-Project-2/
 
 ## `src/NN_VMC`
 
-This folder contains the Variational Monte Carlo implementation based on a Restricted Boltzmann Machine (RBM) trial wave function.
+This folder contains the Variational Monte Carlo (VMC) implementation based on a Restricted Boltzmann Machine (RBM) trial wave function.
 
-The code builds on the VMC structure from Project 1, replacing the analytical trial wave function by a Gaussian-binary RBM. It includes:
-
-- brute-force Metropolis sampling,
-- importance sampling,
-- RBM parameter optimization with Adam,
-- interacting and non-interacting harmonic-trap simulations,
-- parallel replica runs,
-- statistical analysis and plotting scripts.
+The code builds on the VMC structure from Project 1, replacing the analytical trial wave function by a Gaussian-binary RBM. 
 
 Numerical results, plots, and post-processing scripts are stored inside its `data/` folder.
 
@@ -34,7 +27,7 @@ Numerical results, plots, and post-processing scripts are stored inside its `dat
 
 This folder contains the VMC implementation using a feedforward neural network as the variational wave function.
 
-The method follows the neural-network ansatz inspired by Saito's approach. It includes pre-training against a known analytical wave function and subsequent energy optimization using VMC sampling.
+The method follows the neural-network ansatz inspired by Saito's approach. 
 
 This implementation is used to compare the performance of a more flexible feedforward neural network against the RBM ansatz.
 
