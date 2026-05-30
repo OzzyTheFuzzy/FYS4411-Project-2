@@ -9,7 +9,7 @@ from PINN_vs_analytical import *
 from blocking import blocking_error, plot_blocking
 
 # Configuration
-width = 1.33     # Width of the Gaussian distribution for sampling collocation points
+width = 1.3     # Width of the Gaussian distribution for sampling collocation points
 a     = 1.0     # a=1.0  for strength of the Coulomb interactions   
 N     = 10        # Number of particles (dimensions)
 dim   = 3        # Dimensionality of the particles
@@ -17,12 +17,12 @@ omega_ho = 1.0        # Frequency of the harmonic trap in the x and y directions
 beta     = 2.82843  #set beta=1.0 for isotropic case
 omega_z  = beta       # Frequency of the harmonic trap in the z-direction. Set equal to beta for antisotropic case, and to 1 for isotropic cas
 beta_jastrow = 0.5 # Wavefunction parameter when interactions are included 
-alpha   = 0.497000 # Wavefunction parameter for the single-particle part of the wavefunction
+alpha   = 0.5 # Wavefunction parameter for the single-particle part of the wavefunction
 
 #  Training parameters
-training_points = 2000
+training_points = 1000
 seed        = 17
-epochs      = 500
+epochs      = 1000
 batch_size  = 50
 num_batches = training_points // batch_size
 val_points  = 2000
@@ -33,9 +33,9 @@ lr          = 5e-3 # learning rate for optimizer. Will be tuned during training 
 lr_E        = 5e-2 # learning rate for energy parameter, set lower than lr for smoother convergence towards true GS energy
 lr_alpha    = 1e-6 # learning rate for alpha parameter, set lower than
 trainable_alpha = False # whether to train the energy parameter alpha or keep it fixed during training
-trainable_energy = True # whether to train the energy parameter or keep it fixed during training
+trainable_energy = False # whether to train the energy parameter or keep it fixed during training
 coulomb_init    = False # if we do not have hard coded energy results for the given config, use coulomb initialization
-initialize_gaussian = True  #initialize training points with Gaussian or with another method
+initialize_gaussian = False  #initialize training points with Gaussian set True. Set False for ellipsoid shell initialization
 trainable_beta_jastrow = False # whether to train the beta_jastrow parameter or keep it fixed during training
 lr_beta_jastrow = 1e-5
 
@@ -168,7 +168,7 @@ def train_and_evaluate():
     print(f"Saved logs to logs/{model_name}.json")
 
 #train_and_evaluate() # uncomment for training 
-plot_loss_curves(model_name) # for plotting the loss during training
+#plot_loss_curves(model_name, a=a) # for plotting the loss during training
 
 # vmc samples from .dat file
 if a==0.0:

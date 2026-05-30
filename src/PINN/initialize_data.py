@@ -165,7 +165,7 @@ class InitializeData:
                 dtype=self.dtype,
             ) * sigmas
 
-            valid_1 = candidates_1[self.min_distance(candidates_1, min_distance=0.2)]
+            valid_1 = candidates_1[self.min_distance(candidates_1, min_distance=0.1)]
             valid_2 = candidates_2[self.min_distance(candidates_2, min_distance=0.02)]
             valid_3 = candidates_3[self.min_distance(candidates_3, min_distance=0.02)]
 
@@ -318,14 +318,20 @@ class InitializeData:
         """
 
         g = torch.Generator(device=self.device).manual_seed(seed)
-
-        shells = [
-            # (number of particles, s_min, s_max)
-            (1, 0.1, 0.2),
-            (1, 0.7, 1.3),
-            (8, 1.4, 2.8),
-        ]
-
+        N=self.N
+        if N==10:
+            shells = [
+                # (number of particles, s_min, s_max)
+                (1, 0.1, 0.2),
+                (1, 0.7, 1.3),
+                (8, 1.4, 2.8),
+            ]
+        if N==2:
+            shells = [
+                # (number of particles, s_min, s_max)
+                (1, 0.2, 0.62),
+                (1, 0.7, 2.7),
+            ]
         if sum(n for n, _, _ in shells) != self.N:
             raise ValueError("Shell particle counts must sum to self.N")
 
