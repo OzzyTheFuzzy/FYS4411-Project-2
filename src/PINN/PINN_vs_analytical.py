@@ -24,12 +24,14 @@ def load_results(model_name):
 
 def plot_loss_curves(model_name):
     results = load_results(model_name)
-
+    
     loss = results["train_loss"]
     epochs = results["epochs"]
     val_loss = results["val_loss"]
     epochs_val = results["epochs_val"]
-
+    vmc_energy_history = results["vmc_energy_history"]
+    val_energy = results["energy_mean_val_history"]
+    epoch_energy=np.linspace(0, epochs_val[-1], len(vmc_energy_history))
     # Plot loss curve
     plt.plot(epochs, loss, "o-", label="Training", color="blue")
     plt.plot(epochs_val, val_loss, "o-", label="Validation loss", color="red")
@@ -38,6 +40,17 @@ def plot_loss_curves(model_name):
     plt.ylabel("Loss")
     plt.grid(True)
     plt.title("Training and Validation Loss Curves")
+    plt.legend()
+    plt.show()
+    
+    plt.plot(epoch_energy, vmc_energy_history, "o-", label="VMC Energy", color="green")
+    plt.plot(epochs_val[1:], val_energy[1:], "o-", label="Validation Energy", color="red")
+    plt.xlabel("Epoch")
+    plt.xlim(0, epochs_val[-1])
+    plt.ylabel("Energy")
+    plt.ylim(0, max(max(vmc_energy_history), max(val_energy)) * 1.1)
+    plt.grid(True)
+    plt.title("VMC Energy During Training")
     plt.legend()
     plt.show()
 
@@ -118,7 +131,7 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
     V_sum = 0.0
     V_coulomb_sum = 0.0
     trainer = Training(model)
-
+    all_energies = []
     if full == False:
 
         positions_i = torch.tensor(positions[-10_000:],dtype=torch.float32,device=device,requires_grad=True,)
@@ -126,10 +139,12 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
         E_L, E_K, V, V_coulomb = trainer.energy_model(positions_i)
         
         E_i   = E_L.detach().cpu().numpy().reshape(-1)
+        all_energies.append(E_i)
+
         E_K_i = E_K.detach().cpu().numpy().reshape(-1)
         V_i   = V.detach().cpu().numpy().reshape(-1)
         V_coulomb_i = V_coulomb.detach().cpu().numpy().reshape(-1)
-
+        
         E_L_mean = E_L.mean().item()
         E_K_mean = E_K.mean().item()
         V_mean = V.mean().item()
@@ -147,7 +162,7 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
         plot_energies(E_i, E_ana)
 
 
-        return E_L_mean, E_std, E_L
+        return E_L_mean, E_std, np.array(all_energies)
         
     # if full = True we evaluate the energy on the full dataset (can be very slow, so we do it in batches and only save a subset of energies for plotting)
     all_energies = []
@@ -204,67 +219,5 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
     print(np.array(all_energies).shape)
     return E_mean, E_std, np.array(all_energies)
 
-
-
-
-def plot_psi_sqare(positions, PINN_log_wf_array):
-    dim=1
-    N=2
-    x1 = positions[:,0,0].cpu().numpy() #xpositions of first particle
-    psi2 = np.exp(2 * PINN_log_wf_array)
-
-    # bin x1
-    bins = 100
-    hist, edges = np.histogram(x1, bins=bins, weights=psi2, density=True)
-    centers = 0.5*(edges[:-1] + edges[1:])
-
-    x1 = positions[:, 0, 0].cpu().numpy()
-    x2 = positions[:, 1, 0].cpu().numpy()
-
-    r = np.sqrt(x1**2 + x2**2)
-    bins = 100
-    hist, edges = np.histogram(r, bins=bins, density=True)
-
-    centers = 0.5 * (edges[:-1] + edges[1:])
-
-    plt.plot(centers, hist)
-    plt.xlabel("r")
-    plt.ylabel("P(r)")
-    plt.title("Radial probability density")
-    plt.grid(True)
-    plt.show()
-
-    if dim==1 and N==1:
-        pos_array = positions.detach().cpu().numpy().reshape(-1)
-        
-        wf_square = np.exp(2 * PINN_log_wf_array)
-
-        # Normalize PINN |psi|^2
-        norm = trapezoid(wf_square, pos_array)
-        wf_norm = wf_square / norm
-
-        # Analytical |psi|^2
-        x = np.linspace(-3, 3, 500)
-        psi_sq_true = (1 / np.sqrt(np.pi)) * np.exp(-x**2)
-
-        # Plot unnormalized PINN
-        plt.scatter(pos_array, wf_square, label="PINN unnormalized", color="red")
-        plt.plot(x, psi_sq_true, label="Analytical", color="green")
-        plt.xlabel("x")
-        plt.ylabel(r"$|\psi(x)|^2$")
-        plt.legend()
-        plt.grid(True)
-        plt.show()
-
-        # Plot normalized comparison
-        plt.scatter(pos_array, wf_norm, s=5, label="PINN normalized",color="red")
-        plt.plot(x, psi_sq_true, label="Analytical", color="green")
-        plt.xlabel("x")
-        plt.ylabel(r"$|\psi(x)|^2$")
-        plt.legend()
-        plt.grid(True)
-        plt.show()
-
-    return 0
 
 

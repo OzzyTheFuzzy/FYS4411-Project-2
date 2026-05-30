@@ -37,10 +37,10 @@ class InitializeData:
 
     """
 
-    def __init__(self, N, dim, device=None, dtype=torch.float32, hard_core_radius=0.0,initialize_gaussian=False, omega_z=1.0):
+    def __init__(self, N, dim, device=None, dtype=torch.float32, interacting_strength=0.0, initialize_gaussian=False, omega_z=1.0):
         self.N = N
         self.dim = dim
-        self.a = hard_core_radius
+        self.a = interacting_strength
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.dtype = dtype
         self.omega_z = omega_z if omega_z is not None else 1.0
@@ -126,19 +126,19 @@ class InitializeData:
         # Hard-core case: rejection sampling 
         accepted = []
         tries = 0
-        n1 = 49 * total_needed // 100 
-        n2 = 49 * total_needed // 100
+        n1 = 100 * total_needed // 100 
+        n2 = total_needed -n1
         n3 = total_needed - n1 - n2  # takes the remainder to ensure n1+n2+n3 = batch_size
 
         if self.initialize_gaussian==False:
-            particle_pos_fn = self.particle_pos2(batch_size, seed, max_tries
-                                                 )
+            particle_pos_fn = self.particle_pos2(batch_size, seed=seed, max_tries=1000)
+                                                 
             return particle_pos_fn
 
         while total_needed > 0 and tries < max_tries:
             tries += 1
 
-            candidates_1 = torch.randn(
+            candidates_1 = 1.0 *torch.randn(
                 n1,
                 self.N,
                 self.dim,
@@ -147,7 +147,7 @@ class InitializeData:
                 dtype=self.dtype,
             ) * sigmas
 
-            candidates_2 = 1.5 * torch.randn(
+            candidates_2 = 1.0 * torch.randn(
                 n2,
                 self.N,
                 self.dim,
@@ -156,7 +156,7 @@ class InitializeData:
                 dtype=self.dtype,
             ) * sigmas
 
-            candidates_3 = 0.8 * torch.randn(
+            candidates_3 = 1.0 * torch.randn(
                 n3,
                 self.N,
                 self.dim,
@@ -165,9 +165,9 @@ class InitializeData:
                 dtype=self.dtype,
             ) * sigmas
 
-            valid_1 = candidates_1[self.min_distance(candidates_1, min_distance=0.45)]
-            valid_2 = candidates_2[self.min_distance(candidates_2, min_distance=0.45)]
-            valid_3 = candidates_3[self.min_distance(candidates_3, min_distance=0.45)]
+            valid_1 = candidates_1[self.min_distance(candidates_1, min_distance=0.2)]
+            valid_2 = candidates_2[self.min_distance(candidates_2, min_distance=0.02)]
+            valid_3 = candidates_3[self.min_distance(candidates_3, min_distance=0.02)]
 
             candidates = torch.cat([valid_1, valid_2, valid_3], dim=0)
 
@@ -216,7 +216,7 @@ class InitializeData:
 
         return r_ij_abs, r_ij
 
-    def particle_pos2(self, batch_size, seed=17, max_tries=1000):
+    def particle_pos_ellipsoid(self, batch_size, seed=17, max_tries=1000):
         """
         Interacting sampler for anisotropic trap.
 
@@ -300,4 +300,111 @@ class InitializeData:
             )
 
         return torch.cat(accepted, dim=0)[:batch_size]
-        
+
+
+    def particle_pos2(
+        self,
+        batch_size,
+        seed=17,
+        max_tries=2000,
+        r_min=0.2,
+    ):
+        """
+        Stratified ellipsoid sampler.
+
+        Samples exactly n1, n2, n3 particles inside different ellipsoidal
+        volume shells, then imposes a minimum pair distance to prevent
+        Coulomb energy from exploding.
+        """
+
+        g = torch.Generator(device=self.device).manual_seed(seed)
+
+        shells = [
+            # (number of particles, s_min, s_max)
+            (1, 0.1, 0.2),
+            (1, 0.7, 1.3),
+            (8, 1.4, 2.8),
+        ]
+
+        if sum(n for n, _, _ in shells) != self.N:
+            raise ValueError("Shell particle counts must sum to self.N")
+
+        accepted = []
+        total_needed = batch_size
+        tries = 0
+
+        while total_needed > 0 and tries < max_tries:
+            tries += 1
+            n_propose = 8 * total_needed
+
+            all_particles = []
+
+            for n_particles, s_min, s_max in shells:
+                directions = torch.randn(
+                    n_propose,
+                    n_particles,
+                    self.dim,
+                    generator=g,
+                    device=self.device,
+                    dtype=self.dtype,
+                )
+
+                directions = directions / (
+                    torch.linalg.norm(directions, dim=-1, keepdim=True) + 1e-12
+                )
+
+                u = torch.rand(
+                    n_propose,
+                    n_particles,
+                    1,
+                    generator=g,
+                    device=self.device,
+                    dtype=self.dtype,
+                )
+
+                # Uniform in 3D ellipsoidal shell volume
+                s = (s_min**3 + u * (s_max**3 - s_min**3)) ** (1.0 / 3.0)
+
+                positions = s * directions
+
+                # Map spherical shells to trap-adapted ellipsoids:
+                # x = s n_x, y = s n_y, z = s n_z / omega_z
+                if self.dim >= 3:
+                    positions[:, :, 2] /= self.omega_z
+
+                all_particles.append(positions)
+
+            positions = torch.cat(all_particles, dim=1)
+
+            # Scramble particle labels so the network does not see shell ordering
+            perms = torch.stack([
+                torch.randperm(self.N, generator=g, device=self.device)
+                for _ in range(n_propose)
+            ])
+
+            positions = positions[
+                torch.arange(n_propose, device=self.device).unsqueeze(1),
+                perms,
+                :
+            ]
+
+            # Reject configurations where particles are too close
+            if r_min is not None and r_min > 0.0:
+                valid_mask = self.min_distance(
+                    positions,
+                    min_distance=r_min,
+                )
+                positions = positions[valid_mask]
+
+            if positions.shape[0] > 0:
+                n_take = min(total_needed, positions.shape[0])
+                accepted.append(positions[:n_take])
+                total_needed -= n_take
+
+        if total_needed > 0:
+            raise RuntimeError(
+                f"particle_pos2 failed: needed {total_needed} more configurations. "
+                f"Try smaller min_distance, larger outer shell, or larger max_tries."
+            )
+
+        return torch.cat(accepted, dim=0)[:batch_size]
