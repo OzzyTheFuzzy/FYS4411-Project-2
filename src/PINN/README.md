@@ -44,7 +44,7 @@ Physical parameters:
 
 * `N`: number of particles
 * `dim`: spatial dimension
-* `a`: interaction strength / hard-core radius
+* `a`: Coulomb interaction strength
 * `beta`: anisotropy parameter 
 
 
