@@ -70,6 +70,10 @@ and run:
 python experimentation.py
 ```
 
+If you want to evaluate an existing model:
+* add position files to PINN/positions
+* run experimentation.py with train_and_save() commeneted out "#"
+
 The script:
 
 1. Generates collocation points.

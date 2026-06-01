@@ -1,9 +1,10 @@
 # Configuration file for experimentation.py
 import torch
 import torch.nn as nn
+
 # Configuration parameters
-width = 1.0     # Width of the Gaussian distribution for sampling collocation points
-a     = 0.0     # a=1.0  for strength of the Coulomb interactions   
+width = 1.33     # Width of the Gaussian distribution for sampling collocation points
+a     = 1.0     # a=1.0  for strength of the Coulomb interactions   
 N     = 10       # Number of particles (dimensions)
 dim   = 3        # Dimensionality of the particles
 beta  = 2.82843  #set beta=1.0 for isotropic case and beta=2.82843 for antisotropic case

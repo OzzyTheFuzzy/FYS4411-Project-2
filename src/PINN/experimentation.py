@@ -4,10 +4,10 @@ import config_experimentation as config # import configuration parameters for ex
 from train_and_save import train_and_save
 
 model_name   = f"{config.N}N_d{config.dim}_beta{config.beta}_a{config.a}_width{config.width}_IG{config.initialize_gaussian}" # name for saving model and logs
-#model_name= f'write your specific model name here' # uncomment and write your specific model name for loading a trained model and plotting results
+#model_name= f'model_name' # uncomment and write your specific model name for loading a trained model and plotting results
 
 #train_and_save(config, model_name, config.model_config) # uncomment to train and save training data for the given config 
-plot_loss_curves(model_name, a=config.a) # for plotting the loss during training
+plot_loss_curves(model_name, config) # for plotting the loss during training
 
 # vmc samples from .dat file
 if config.a==0.0:

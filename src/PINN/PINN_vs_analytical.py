@@ -21,15 +21,15 @@ def load_results(model_name):
     return results
 
 
-def plot_loss_curves(model_name,a):
-    results = load_results(model_name)
-    
+def plot_loss_curves(model_name, config):
+    results = load_results(model_name) #loading results from json file
+    a=config.a
     loss = results["train_loss"]
     epochs = results["epochs"]
     val_loss = results["val_loss"]
     epochs_val = results["epochs_val"]
     
-    val_energy = results["energy_mean_val_history"]
+    name_of_plot = f"{model_name}_loss.pdf"
     
     # Plot loss curve
     plt.plot(epochs, loss, "o-", label="Training", color="blue")
@@ -38,11 +38,13 @@ def plot_loss_curves(model_name,a):
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
     plt.grid(True)
-    plt.title("Training and Validation Loss Curves")
+    plt.title(f"Training and Validation Loss Curves for N={config.N}, d={config.dim}, beta={config.beta}, a={config.a}")
     plt.legend()
+    plt.savefig(f"figures/{name_of_plot}")
     plt.show()
 
     if a!=0.0:
+        val_energy = results["energy_mean_val_history"]
         vmc_energy_history = results["vmc_energy_history"]
         epoch_energy=np.linspace(0, epochs_val[-1], len(vmc_energy_history))
         plt.plot(
