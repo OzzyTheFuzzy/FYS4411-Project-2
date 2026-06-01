@@ -36,9 +36,9 @@ make clean
 
 ## Main Files
 
-### `experimentation.py`
+### `config_experimentaion.py`
 
-Main script for training and evaluating models.
+Here you define the system and training parameters before running experimentation.py.
 
 Physical parameters:
 
@@ -58,6 +58,12 @@ Training parameters:
 * `initialize_gaussian` : set True for gaussian sampling and False for other sampler method
 * `trainable_energy` : set True for trainable eigenvalue $E_\theta$
 
+
+### `experimentation.py`
+
+Main script for training and evaluating models.
+
+
 To train a model, uncomment:
 
 ```python
@@ -72,7 +78,7 @@ python experimentation.py
 
 If you want to evaluate an existing model:
 * add position files to PINN/positions
-* make sure you have the correct width, N, dim, a and beta for the given model in the config_experimentation file
+* make sure you have the correct width, N, dim, a and beta for the given model in the config_experimentation.py file.
 * run experimentation.py with train_and_save() commeneted out "#"
 
 The script:
