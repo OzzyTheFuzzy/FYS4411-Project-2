@@ -3,10 +3,10 @@ import torch
 import torch.nn as nn
 
 # Configuration parameters
-width = 1.33     # Width of the Gaussian distribution for sampling collocation points
+width = 1.3     # Width of the Gaussian distribution for sampling collocation points
 a     = 1.0     # a=1.0  for strength of the Coulomb interactions   
-N     = 10       # Number of particles (dimensions)
-dim   = 3        # Dimensionality of the particles
+N     = 10      # Number of particles (dimensions)
+dim   = 3      # Dimensionality of the particles
 beta  = 2.82843  #set beta=1.0 for isotropic case and beta=2.82843 for antisotropic case
 
 omega_z  = beta       # Frequency of the harmonic trap in the z-direction. Set equal to beta for antisotropic case, and to 1 for isotropic cas
@@ -16,7 +16,7 @@ omega_ho = 1.0        # Frequency of the harmonic trap in the x and y directions
 
 #  Training parameters
 trainable_energy = False # whether to train the energy parameter or keep it fixed during training
-initialize_gaussian = True #initialize training points with Gaussian set True. Set False for ellipsoid shell initialization
+initialize_gaussian = False #initialize training points with Gaussian set True. Set False for ellipsoid shell initialization
 
 training_points = 2000
 seed        = 17
