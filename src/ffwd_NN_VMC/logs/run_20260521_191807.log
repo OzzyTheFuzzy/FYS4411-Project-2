@@ -1,0 +1,51 @@
+=========================================
+               VMC RUN LOG               
+=========================================
+Date and time    : 2026-05-21 19:18:07
+-----------------------------------------
+[ SYSTEM & MODELS ]
+Hamiltonian      : CoulombHO
+WF Train Type    : EllipticGaussian
+WaveFunction     : NN_envelope
+Solver           : MetropolisHastings
+preferAnalytic   : false
+useCache         : false
+-----------------------------------------
+[ PHYSICAL PARAMETERS ]
+dimensions (D)   : 2
+particles (N)    : 2
+omega            : 1
+omega_z          : 2.8243
+rep_a_factor     : 0.0043
+rep_strength     : inf
+maxStrength      : 1
+-----------------------------------------
+[ MONTE CARLO & OPTIMIZATION ]
+time Step        : 0.15
+Equilibr. Steps  : 10000
+BFGS MC Steps    : 10000
+BFGS_tol         : 1e-05
+Final MC Steps   : 2^16 (65536)
+-----------------------------------------
+[ NEURAL NETWORK ]
+Nhid             : 10
+Activation Func  : gelu
+Learning Rate    : 0.05
+Pretrain Steps   : 2000
+Energy Steps     : 4000
+Adiab Steps      : 1000
+Adam_ktol        : 0.99
+max_patience     : 100
+min_improvement  : 0.02
+helpDecay        : 0.4
+-----------------------------------------
+[ OBSERVABLES & MISC ]
+1bodyDens. Steps : 5000000
+1bodyDens. rMax  : 3.5
+1bodyDens. nBins : 50
+Seed             : 0
+=========================================
+
+One-body density done (in 612.542 s).
+
+=========================================

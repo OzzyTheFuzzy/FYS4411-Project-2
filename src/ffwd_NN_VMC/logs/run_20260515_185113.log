@@ -1,0 +1,59 @@
+=========================================
+               VMC RUN LOG               
+=========================================
+Date and time    : 2026-05-15 18:51:13
+-----------------------------------------
+[ SYSTEM & MODELS ]
+Hamiltonian      : CoulombHO
+WF Train Type    : EllipticGaussian
+WaveFunction     : NN_envelope
+Solver           : MetropolisHastings
+preferAnalytic   : false
+useCache         : false
+-----------------------------------------
+[ PHYSICAL PARAMETERS ]
+dimensions (D)   : 2
+particles (N)    : 2
+omega            : 1
+omega_z          : 2.8243
+rep_a_factor     : 0.0043
+rep_strength     : inf
+maxStrength      : 1
+-----------------------------------------
+[ MONTE CARLO & OPTIMIZATION ]
+time Step        : 0.15
+Equilibr. Steps  : 10000
+BFGS MC Steps    : 10000
+BFGS_tol         : 1e-05
+Final MC Steps   : 2^16 (65536)
+-----------------------------------------
+[ NEURAL NETWORK ]
+Nhid             : 6
+Learning Rate    : 0.05
+Pretrain Steps   : 200
+Energy Steps     : 250
+Adiab Steps      : 100
+Adam_ktol        : 0.99
+helpDecay        : 0.4
+-----------------------------------------
+[ OBSERVABLES & MISC ]
+1bodyDens. Steps : 100000
+1bodyDens. rMax  : 3.5
+1bodyDens. nBins : 50
+Seed             : -1343187312
+=========================================
+
+Initial parameters for psi_train: 0.5, 	2.8243, 	
+Optimal parameters: 1.96489284, 	0.484706048, 	-0.0978220696, 	0.0628558186, 	1.68013751, 	0.501233434, 	0.985996872, 	-0.411366103, 	-0.649013029, 	0.0869817937, 	-1.19267646, 	0.0583718235, 	-1.98694138, 	-0.0588884069, 	-0.641697815, 	-0.600302254, 	-1.62021974, 	-0.130926658, 	-0.919543839, 	-0.536084149, 	-0.271661326, 	0.0490879611, 	1.22794851, 	0.203230173, 	0.0198082567, 	-0.120194981, 	-0.215570446, 	0.139860452, 	-0.00469132786, 	0.100433297, 	0.23276241, 	-0.424017279, 	-0.221011565, 	-0.942257964, 	0.260767646, 	-1.1538958, 	
+NN_VMC Optimization done (in 1232.18408 s).
+
+FinalMC energy: 3.045513944e+00 +- 4.187652278e-03
+Acceptance ratio: 9.790496826e-01
+FinalMC done (in 35.2377266 s).
+
+Blocking energy: 3.045513932e+00 +- 5.563686098e-03
+Blocking analysis done (in 0.008969401 s).
+
+One-body density done (in 15.3417765 s).
+
+=========================================

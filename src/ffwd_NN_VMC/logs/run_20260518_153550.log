@@ -1,0 +1,62 @@
+=========================================
+               VMC RUN LOG               
+=========================================
+Date and time    : 2026-05-18 15:35:50
+-----------------------------------------
+[ SYSTEM & MODELS ]
+Hamiltonian      : CoulombHO
+WF Train Type    : EllipticGaussian
+WaveFunction     : NN_envelope
+Solver           : MetropolisHastings
+preferAnalytic   : false
+useCache         : false
+-----------------------------------------
+[ PHYSICAL PARAMETERS ]
+dimensions (D)   : 2
+particles (N)    : 2
+omega            : 1
+omega_z          : 2.8243
+rep_a_factor     : 0.0043
+rep_strength     : inf
+maxStrength      : 0
+-----------------------------------------
+[ MONTE CARLO & OPTIMIZATION ]
+time Step        : 0.15
+Equilibr. Steps  : 10000
+BFGS MC Steps    : 10000
+BFGS_tol         : 1e-05
+Final MC Steps   : 2^16 (65536)
+-----------------------------------------
+[ NEURAL NETWORK ]
+Nhid             : 10
+Activation Func  : tanh
+Learning Rate    : 0.05
+Pretrain Steps   : 200
+Energy Steps     : 1100
+Adiab Steps      : 100
+Adam_ktol        : 0.99
+max_patience     : 80
+min_improvement  : 0.02
+helpDecay        : 0.4
+-----------------------------------------
+[ OBSERVABLES & MISC ]
+1bodyDens. Steps : 100000
+1bodyDens. rMax  : 3.5
+1bodyDens. nBins : 50
+Seed             : 0
+=========================================
+
+Initial parameters for psi_train: 0.5, 	2.8243, 	
+Optimal parameters: 0.0693293929, 	-0.818555361, 	0.0894250215, 	-0.151406465, 	0.547186643, 	-0.419096283, 	-0.27314825, 	0.0238290015, 	0.216111492, 	-0.778747014, 	-0.558642986, 	0.952402544, 	-0.694611768, 	0.0603693368, 	0.105675769, 	-0.212783378, 	0.827132106, 	-0.705506406, 	-0.610759093, 	0.893864779, 	-0.930193653, 	-1.31057876, 	-1.14757563, 	-0.516883719, 	-0.0856019211, 	0.0930844351, 	-0.218523297, 	-1.21844578, 	0.153292251, 	-1.28822788, 	-0.485521462, 	0.670011836, 	-0.583406186, 	0.403266684, 	-0.303153233, 	-0.37903103, 	-0.348794306, 	-1.54015939, 	0.256276876, 	0.674289843, 	1.65365349, 	-0.26874008, 	1.92669243, 	-1.13149888, 	-0.972470457, 	-0.969583093, 	-1.7409838, 	0.496923016, 	-1.34067882, 	-0.252609796, 	1.45402013, 	0.295385192, 	-0.926550165, 	-0.613811072, 	-0.624280719, 	-0.663559389, 	-0.276203509, 	0.0151424, 	-0.567153795, 	-0.322926096, 	
+NN_VMC Optimization done (in 4910.37464 s).
+
+FinalMC energy: 2.001578709e+00 +- 3.197286937e-04
+Acceptance ratio: 9.793853760e-01
+FinalMC done (in 31.508076 s).
+
+Blocking energy: 2.001578711e+00 +- 7.315001603e-04
+Blocking analysis done (in 0.008479244 s).
+
+One-body density done (in 14.9135945 s).
+
+=========================================

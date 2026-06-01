@@ -37,10 +37,11 @@ build_release
 build_debug
 
 #ignore logs
-logs/*
-logs_NN/*
-logs_OBD/*
-figs_NN/*
+# logs/*
+# logs/old_logs/*
+# logs_NN/*
+# logs_OBD/*
+# figs_NN/*
 
 #ignore report files
 images_backup

@@ -1,0 +1,40 @@
+=========================================
+               VMC RUN LOG               
+=========================================
+Date and time    : 2026-03-26 21:00:30
+-----------------------------------------
+Hamiltonian      : HarmonicOscillator
+WaveFunction     : SimpleGaussian
+Solver           : Metropolis
+-----------------------------------------
+preferAnalytic   : true
+dimensions (D)   : 3
+particles (N)    : 10
+omega            : 1
+omega_z          : 1
+rep_a_factor     : 0
+time Step        : 2
+Equilibr. Steps  : 100000
+BFGS MC Steps    : 1000000
+Final MC Steps   : 2^23
+1bodyDens. Steps : 10000000
+1bodyDens. rMax  : 3.5
+1bodyDens. nBins : 50
+BFGS_tol         : 1e-05
+Seed             : 0
+=========================================
+
+Initial parameters: 0.75, 	
+Optimal parameters: 0.499983104, 	
+VMC Optimization done (in 12.1447213 s).
+
+FinalMC energy: 1.499999998e+01 +- 4.542444547e-08
+Acceptance ratio: 5.049966574e-01
+FinalMC done (in 5.68525551 s).
+
+Blocking energy: 1.499999996e+01 +- 4.806231095e-07
+Blocking analysis done (in 0.865865181 s).
+
+One-body density done (in 1.22564718 s).
+
+=========================================

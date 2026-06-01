@@ -1,0 +1,31 @@
+=========================================
+               VMC RUN LOG               
+=========================================
+Date and time    : 2026-05-15 15:25:46
+-----------------------------------------
+Hamiltonian      : CoulombHO
+WaveFunction     : EllipticGaussian
+Solver           : MetropolisHastings
+-----------------------------------------
+preferAnalytic   : false
+dimensions (D)   : 2
+particles (N)    : 2
+omega            : 1
+omega_z          : 2.8243
+rep_a_factor     : 0.0043
+time Step        : 0.15
+Equilibr. Steps  : 10000
+BFGS MC Steps    : 10000
+Final MC Steps   : 2^16
+1bodyDens. Steps : 10000000
+1bodyDens. rMax  : 3.5
+1bodyDens. nBins : 50
+BFGS_tol         : 1e-05
+Seed             : -1706447459
+=========================================
+
+Initial parameters for psi_train: 0.5, 	2.8243, 	
+Optimal parameters: -0.730488542, 	-0.127909046, 	0.385365517, 	-0.659328597, 	-1.06660742, 	-1.18483004, 	0.629794638, 	0.036025507, 	0.847695972, 	-0.0365497589, 	0.234871852, 	-0.842146132, 	0.850673499, 	1.40219367, 	0.72171857, 	0.0841360614, 	-0.907061693, 	0.935121726, 	1.8503175, 	1.8202371, 	0.347311364, 	-0.33243468, 	0.328078399, 	0.320202613, 	
+VMC Optimization done (in 1582.88442 s).
+
+=========================================

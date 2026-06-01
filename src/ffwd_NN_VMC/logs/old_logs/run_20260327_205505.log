@@ -1,0 +1,40 @@
+=========================================
+               VMC RUN LOG               
+=========================================
+Date and time    : 2026-03-27 20:55:05
+-----------------------------------------
+Hamiltonian      : RepulsiveHO
+WaveFunction     : RepEllipticGaussian
+Solver           : MetropolisHastings
+-----------------------------------------
+preferAnalytic   : true
+dimensions (D)   : 3
+particles (N)    : 10
+omega            : 1
+omega_z          : 2.8243
+rep_a_factor     : 0.05
+time Step        : 0.05
+Equilibr. Steps  : 100000
+BFGS MC Steps    : 1000000
+Final MC Steps   : 2^23
+1bodyDens. Steps : 10000000
+1bodyDens. rMax  : 3.5
+1bodyDens. nBins : 50
+BFGS_tol         : 1e-05
+Seed             : 1681925968
+=========================================
+
+Initial parameters: 0.5, 	2.8243, 	
+Optimal parameters: 0.454712697, 	3.11467447, 	
+VMC Optimization done (in 260.400762 s).
+
+FinalMC energy: 2.677657650e+01 +- 1.274346336e-04
+Acceptance ratio: 9.739668369e-01
+FinalMC done (in 130.220075 s).
+
+Blocking energy: 2.677657648e+01 +- 1.211322592e-03
+Blocking analysis done (in 1.44195367 s).
+
+One-body density done (in 79.4855844 s).
+
+=========================================
