@@ -1,0 +1,47 @@
+{
+    "system": {
+        "hamiltonianType": "CoulombHO",
+        "waveFunctionTrainType": "EllipticGaussian",
+        "waveFunctionType": "NN_envelope",
+        "solverType": "MetropolisHastings",
+        "preferAnalytic": false,
+        "useCache": false
+    },
+    "physics": {
+        "dimensions": 3,
+        "particles": 2,
+        "omega": 1.0,
+        "omega_z": 2.8243,
+        "repulsive_a_factor": 0.0043,
+        "repulsive_strength": "inf",
+        "maxStrength": 1,
+        "initialParams": [0.50, 2.8243]
+    },
+    "monte_carlo": {
+        "timeStep": 0.15,
+        "equilibrationSteps": 10000,
+        "metropolisSteps": 10000,
+        "finalMClog2steps": 16,
+        "BFGS_tol": 1e-5
+    },
+    "neural_network": {
+        "Nhid": 12,
+        "activationFunctionType": "tanh",
+        "helpDecay": 0.4,
+        "lr": 0.05,
+        "Adam_ktol": 0.99,
+        "max_patience": 80,
+        "min_improvement": 0.02,
+        "nPretrainSteps": 1000,
+        "nEnergySteps": 3000,
+        "nAdiabSteps": 1000
+    },
+    "observables": {
+        "onebodyDensitySteps": 5000000,
+        "onebodyDensity_rMax": 3.5,
+        "onebodyDensity_nBins": 50
+    },
+    "misc": {
+        "seed": 0
+    }
+}
