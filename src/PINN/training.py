@@ -99,10 +99,8 @@ class Training(LossFunctions):
         N_validation = self.val_points
         data_initializer_val = InitializeData(self.model.N, self.model.dim, device=self.device, interacting_strength=self.model.a, initialize_gaussian=data_initializer.initialize_gaussian, omega_z=data_initializer.omega_z)
         val_positions = data_initializer_val.initialize_pde(N_validation, width=self.val_width, seed=self.val_seed)
-        print("x std:", val_positions[:, :, 0].std())
-        print("y std:", val_positions[:, :, 1].std())
-        print("z std:", val_positions[:, :, 2].std())
-        if self.model.a > 0.0: #finetunes the initial energy for coulomb interactions
+
+        if self.model.a > 0.0: #finetunes the initial energy when coulomb interactions are present
             if coulomb_init:
                 self.initialize_energy_with_coulomb(val_positions)
             else: 
@@ -215,6 +213,3 @@ class Training(LossFunctions):
                 scheduler.step()
 
         return loss, epochs, val_loss, epochs_val, best_model_state
-
-
-

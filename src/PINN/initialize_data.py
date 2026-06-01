@@ -123,10 +123,11 @@ class InitializeData:
 
             return candidates[perm] 
 
-        # Hard-core case: rejection sampling 
+        # Gaussian sampling with rejection 
         accepted = []
         tries = 0
         n1 = 100 * total_needed // 100 
+        #optional if you want 
         n2 = total_needed -n1
         n3 = total_needed - n1 - n2  # takes the remainder to ensure n1+n2+n3 = batch_size
 
@@ -147,6 +148,7 @@ class InitializeData:
                 dtype=self.dtype,
             ) * sigmas
 
+            # optional if you want different gaussian widths
             candidates_2 = 1.0 * torch.randn(
                 n2,
                 self.N,
@@ -315,6 +317,7 @@ class InitializeData:
         Samples exactly n1, n2, n3 particles inside different ellipsoidal
         volume shells, then imposes a minimum pair distance to prevent
         Coulomb energy from exploding.
+        Only used for N=2 and N=10 with a=1.0
         """
 
         g = torch.Generator(device=self.device).manual_seed(seed)

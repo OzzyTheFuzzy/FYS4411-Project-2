@@ -21,15 +21,14 @@ def load_results(model_name):
     return results
 
 
-def plot_loss_curves(model_name,a):
-    results = load_results(model_name)
-    
+def plot_loss_curves(model_name, config):
+    results = load_results(model_name) #loading results from json file
     loss = results["train_loss"]
     epochs = results["epochs"]
     val_loss = results["val_loss"]
     epochs_val = results["epochs_val"]
     
-    val_energy = results["energy_mean_val_history"]
+    name_of_plot = f"{model_name}_loss.pdf"
     
     # Plot loss curve
     plt.plot(epochs, loss, "o-", label="Training", color="blue")
@@ -38,11 +37,13 @@ def plot_loss_curves(model_name,a):
     plt.xlabel("Epoch")
     plt.ylabel("Loss")
     plt.grid(True)
-    plt.title("Training and Validation Loss Curves")
+    plt.title(f"Training and Validation Loss Curves for N={config.N}, d={config.dim}, beta={config.beta}, a={config.a}")
     plt.legend()
+    plt.savefig(f"figures/{name_of_plot}")
     plt.show()
 
-    if a!=0.0:
+    if config.a != 0.0:
+        val_energy = results["energy_mean_val_history"]
         vmc_energy_history = results["vmc_energy_history"]
         epoch_energy=np.linspace(0, epochs_val[-1], len(vmc_energy_history))
         plt.plot(
@@ -123,19 +124,19 @@ def plot_energies(PINN_energies, energies,a):
     plt.show()
 
 
-def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, omega_ho=1.0, device="cpu", full=False):
+def energy_vmc_and_plot(model_name, config, full=False):
     energies_for_plot = []
     
-    if a==0.0:
+    if config.a == 0.0:
        
-        if beta == 1.0:
-            E_ana = N * d / 2
+        if config.beta == 1.0:
+            E_ana = config.N * config.dim / 2
         else:
-            E_ana = N * (1 + beta / 2)
+            E_ana = config.N * (1 + config.beta / 2)
     else:
-        if N == 2 and d == 3 and a == 1.0 and beta != 1.0:
+        if config.N == 2 and config.dim == 3 and config.a == 1.0 and config.beta != 1.0:
             E_ana = 5.688  # obtained from RBM, can be adjusted based on the specific system and model initialization
-        elif N == 10 and d == 3 and a == 1.0 and beta != 1.0:
+        elif config.N == 10 and config.dim == 3 and config.a == 1.0 and config.beta != 1.0:
             E_ana = 58.48  # obtained from RBM, can be adjusted based on the specific system and model initialization
         else:
             raise ValueError("Analytical energy not known for this combination of parameters")
@@ -144,11 +145,21 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
     batch_size      = 10000 # to avoid memory issues when evaluating the energy on a large number of samples
     model_name=f'{model_name}.pth'
 
-    model = model_reconstructer(model_name, N, d, a=a, beta=beta, omega_z=omega_z, omega_ho=omega_ho)
+    model = model_reconstructer(
+        model_name,
+        config.N,
+        config.dim,
+        a=config.a,
+        beta=config.beta,
+        omega_z=config.omega_z,
+        omega_ho=config.omega_ho,
+    )
 
-    positions = load_pos_general(a, beta, N, d)
+    positions = load_pos_general(config.a, config.beta, config.N, config.dim)
 
     print(f"Loaded positions with shape: {positions.shape}")
+    device = next(model.parameters()).device
+    samples = positions.shape[0]
     E_sum = 0.0
     E2_sum = 0.0
     count = 0
@@ -180,13 +191,13 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
         E_std = np.sqrt(max(E_L_var, 0.0))
         
         print(f"Using last 10,000 positions for quick energy evaluation:")
-        print(f"N = {N}, d = {d}, beta = {beta}, a = {a}")
+        print(f"N = {config.N}, d = {config.dim}, beta = {config.beta}, a = {config.a}")
         print(f"PINN E_mean = {E_L_mean:.5f} and E_estimate = {E_ana:.5f}") #estimate is from RBM-VMC unless a=0, then it is analytical energy
         print(f"PINN E_std  = {E_std:.5f}, E_var = {E_L_var:.5f}" )
         print(f"PINN E_K_mean = {E_K_mean:.5f}")
         print(f"PINN V_mean = {V_mean:.5f}")
         print(f"PINN V_coulomb_mean = {V_coulomb_mean:.5f}")
-        plot_energies(E_i, E_ana,a=a)
+        plot_energies(E_i, E_ana,a=config.a)
 
 
         return E_L_mean, E_std, np.array(all_energies)
@@ -238,13 +249,24 @@ def energy_vmc_and_plot(model_name, N, d, samples, beta, a=0.0, omega_z=1.0, ome
     E_std = np.sqrt(E_var)
 
     print("\npositions obtained")
-    print(f"N = {N}, d = {d}, beta = {beta}, a = {a}")
+    print(f"N = {config.N}, d = {config.dim}, beta = {config.beta}, a = {config.a}")
     print(f"PINN E_mean = {E_mean:.8f} and E_estimate = {E_ana:.8f}")
     print(f"PINN E_std  = {E_std}, E_var = {E_var}")
     print(f"PINN E_K_mean = {E_K_mean:.8f}")
     print(f"PINN V_mean = {V_mean:.8f}")
     print(f"PINN V_coulomb_mean = {V_coulomb_mean:.8f}")
-    plot_energies(energies_for_plot, E_ana,a=a)
+    plot_energies(energies_for_plot, E_ana,a=config.a)
+    filename = f"final_energy_eval/{model_name}_final_energy.txt"
+
+    with open(filename, "a") as f:
+        f.write(f"N={config.N}, d={config.dim}, beta={config.beta}, a={config.a}, width={config.width}\n")
+        f.write(f"E_mean={E_mean:.8f}\n")
+        f.write(f"E_std={E_std:.8f}\n")
+        f.write(f"E_var={E_var:.8f}\n")
+        f.write(f"E_K_mean={E_K_mean:.8f}\n")
+        f.write(f"V_mean={V_mean:.8f}\n")
+        f.write(f"V_coulomb_mean={V_coulomb_mean:.8f}\n")
+        f.write("-" * 50 + "\n")
    
     return E_mean, E_std, np.concatenate(all_energies)
 
