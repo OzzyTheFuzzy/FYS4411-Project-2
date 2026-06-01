@@ -72,6 +72,7 @@ python experimentation.py
 
 If you want to evaluate an existing model:
 * add position files to PINN/positions
+* make sure you have the correct width, N, dim, a and beta for the given model in the config_experimentation file
 * run experimentation.py with train_and_save() commeneted out "#"
 
 The script:
@@ -133,7 +134,7 @@ Loads saved particle-positions from configurations from VMC simulations
 
 ### `models/`
 
-Saved trained models (`.pth` files).
+Saved trained models (.pth files). Each model is saved with a filename that reflects the corresponding physical system and training configuration.
 
 ### `logs/`
 
@@ -146,6 +147,10 @@ Generated figures.
 ### `positions/`
 
 Stored particle-position samples.
+
+### `final_energy_eval`
+
+Stored final energy evaluations and variances of all the models
 
 ### `__pycache__/`
 
