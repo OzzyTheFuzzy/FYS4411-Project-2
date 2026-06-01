@@ -166,10 +166,11 @@ class InitializeData:
                 device=self.device,
                 dtype=self.dtype,
             ) * sigmas
-
-            valid_1 = candidates_1[self.min_distance(candidates_1, min_distance=0.1)]
-            valid_2 = candidates_2[self.min_distance(candidates_2, min_distance=0.02)]
-            valid_3 = candidates_3[self.min_distance(candidates_3, min_distance=0.02)]
+            r_min=0.1
+            min_distance=r_min
+            valid_1 = candidates_1[self.min_distance(candidates_1, min_distance=min_distance)] 
+            valid_2 = candidates_2[self.min_distance(candidates_2, min_distance=min_distance))]
+            valid_3 = candidates_3[self.min_distance(candidates_3, min_distance=min_distance))]
 
             candidates = torch.cat([valid_1, valid_2, valid_3], dim=0)
 
@@ -218,91 +219,6 @@ class InitializeData:
 
         return r_ij_abs, r_ij
 
-    def particle_pos_ellipsoid(self, batch_size, seed=17, max_tries=1000):
-        """
-        Interacting sampler for anisotropic trap.
-
-        Samples an ellipsoidal radial variable s, where
-
-            s^2 = x^2 + y^2 + omega_z z^2
-
-        Then maps to
-
-            x = s n_x
-            y = s n_y
-            z = s n_z / sqrt(omega_z)
-
-        This gives configurations adapted to the trap shape.
-        """
-
-        g = torch.Generator(device=self.device).manual_seed(seed)
-
-        accepted = []
-        total_needed = batch_size
-        tries = 0
-
-        # Tune these
-        s_mean = 2.0
-        s_std = 0.5
-        min_dist = 0.2
-
-        while total_needed > 0 and tries < max_tries:
-            tries += 1
-
-            n_propose = 4 * total_needed
-
-            # sample ellipsoidal radius
-            s = torch.normal(
-                mean=s_mean,
-                std=s_std,
-                size=(n_propose, self.N),
-                generator=g,
-                device=self.device,
-                dtype=self.dtype,
-            )
-
-            s = torch.clamp(s, min=0.05)
-
-            # random directions on unit sphere
-            directions = torch.randn(
-                n_propose,
-                self.N,
-                self.dim,
-                generator=g,
-                device=self.device,
-                dtype=self.dtype,
-            )
-
-            directions = directions / (
-                torch.linalg.norm(directions, dim=-1, keepdim=True) + 1e-12
-            )
-
-            # ellipsoidal coordinates
-            positions = s.unsqueeze(-1) * directions
-
-            # compress z according to anisotropic trap
-            if self.dim >= 3:
-                positions[:, :, 2] /= self.omega_z
-
-            valid_mask = self.min_distance(
-                positions,
-                min_distance=min_dist,
-            )
-
-            valid = positions[valid_mask]
-
-            if valid.shape[0] > 0:
-                n_take = min(total_needed, valid.shape[0])
-                accepted.append(valid[:n_take])
-                total_needed -= n_take
-
-        if total_needed > 0:
-            raise RuntimeError(
-                "particle_pos2 failed to generate enough valid configurations."
-            )
-
-        return torch.cat(accepted, dim=0)[:batch_size]
-
 
     def particle_pos2(
         self,
@@ -323,17 +239,22 @@ class InitializeData:
         g = torch.Generator(device=self.device).manual_seed(seed)
         N=self.N
         if N==10:
+            n1=1
+            n2=1
+            n3=8
             shells = [
                 # (number of particles, s_min, s_max)
-                (1, 0.1, 0.2),
-                (1, 0.7, 1.3),
-                (8, 1.4, 2.8),
+                (n1, 0.1, 0.2),
+                (n2, 0.7, 1.3),
+                (n3, 1.4, 2.8),
             ]
         if N==2:
+            n1=1
+            n2=1
             shells = [
                 # (number of particles, s_min, s_max)
-                (1, 0.2, 0.62),
-                (1, 0.7, 2.7),
+                (n1, 0.2, 0.62),
+                (n2, 0.7, 2.7),
             ]
         if sum(n for n, _, _ in shells) != self.N:
             raise ValueError("Shell particle counts must sum to self.N")
