@@ -35,7 +35,7 @@ This implementation is used to compare the performance of a more flexible feedfo
 
 This folder contains the Physics-Informed Neural Network implementation.
 
-The PINN approach does not use standard VMC optimization of a trial wave function. Instead, it trains a neural network by minimizing a residual of the Schrödinger equation. The implementation includes sampling of physically relevant particle configurations, treatment of isotropic and anisotropic traps, and interaction terms.
+The PINN approach does not use standard VMC optimization of a trial wave function. Instead, it trains a neural network by minimizing a residual of the Schrödinger equation. The implementation includes sampling of physically relevant particle configurations, treatment of isotropic and anisotropic traps, and interaction terms. Blocking method plots, which where used for estimation of the uncertainty of the energy can be found in PINN/figures. All energy results, including the variance, can be found in PINN/final_energy_eval and all the training data, model structures and training parameters can be found in PINN/logs.
 
 ## Notes
 
