@@ -31,6 +31,9 @@ The method follows the neural-network ansatz inspired by Saito's approach.
 
 This implementation is used to compare the performance of a more flexible feedforward neural network against the RBM ansatz.
 
+General logs, numerical results, plots are stored inside folders `logs/`, `logs_NN/`, `logs_OBD/`, `figs_NN/`.
+More details on how these folders work are explained in `./src/fffwd_NN_VMC/README.md`.
+
 ## `src/PINN`
 
 This folder contains the Physics-Informed Neural Network implementation.
